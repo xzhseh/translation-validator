@@ -28,7 +28,7 @@ set(ALIVE2_DIR "/path/to/alive2")
 include_directories(${ALIVE2_DIR})
 
 # Add your source files
-add_executable(translation_validator main.cpp)
+add_executable(translation_validator src/main.cpp)
 
 # Link against LLVM, Z3, and Alive2
 target_link_libraries(translation_validator PRIVATE
