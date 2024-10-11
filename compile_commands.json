@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/Users/verta/Purdue/translation_validator/build",
-  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/verta/OpenSourceLib/llvm-project/llvm/include -I/Users/verta/OpenSourceLib/llvm-project/build/include -I/Users/verta/OpenSourceLib/alive2  -frtti -fexceptions -std=gnu++20 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -o CMakeFiles/translation_validator.dir/src/main.cpp.o -c /Users/verta/Purdue/translation_validator/src/main.cpp",
-  "file": "/Users/verta/Purdue/translation_validator/src/main.cpp",
-  "output": "CMakeFiles/translation_validator.dir/src/main.cpp.o"
-}
-]
