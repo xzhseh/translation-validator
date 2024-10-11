@@ -1,5 +1,7 @@
+## translation validator
+
 ### prerequisites
-- follow the instructions in [alive2](https://github.com/alive2/alive2) to build and configure alive2, also the specific llvm with RTTI and exceptions turned on.
+- follow the instructions in [alive2](https://github.com/AliveToolkit/alive2) to build and configure alive2, also the specific llvm with RTTI and exceptions turned on.
   - I basically build the llvm from source (i.e., the latest main branch) and build the alive2 upon it.
 
 - based on the provided `CMakeLists_Template`, create your own `CMakeLists.txt` by replacing the placeholder for the paths.
