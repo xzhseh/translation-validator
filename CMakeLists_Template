@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 project(TranslationValidator C CXX)
 
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,14 +39,16 @@ target_link_libraries(translation_validator PRIVATE
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMSupport.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMIRReader.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMBitReader.dylib
-    # For machine code support, if needed
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMMC.dylib
-    # If command-line options are used
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMOption.dylib
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMAnalysis.dylib  # For TargetLibraryInfo
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTarget.dylib    # For Triple
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTargetParser.dylib  # For Triple parsing
 
     ${Z3_LIBRARIES}
     ${ALIVE2_DIR}/build/libir.a
     ${ALIVE2_DIR}/build/libsmt.a
     ${ALIVE2_DIR}/build/libutil.a
     ${ALIVE2_DIR}/build/libtools.a
+    ${ALIVE2_DIR}/build/libllvm_util.a  # For llvm_util::initializer
 )
