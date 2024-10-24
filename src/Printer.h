@@ -19,7 +19,8 @@ public:
     }
 
     /// print function comparison header
-    void printComparisonHeader(const std::string &cppName, const std::string &rustName) const {
+    void printComparisonHeader(const std::string &cppName,
+                               const std::string &rustName) const {
         os << "Comparing functions:\n"
            << "  C++: " << cppName << "\n"
            << "  Rust: " << rustName << "\n";
@@ -27,12 +28,12 @@ public:
 
     /// print verification result
     void printVerificationResult(bool success) const {
-        os << (success ? "Transformation seems to be correct!\n" 
-                      : "Transformation verification failed!\n");
+        os << (success ? "Transformation seems to be correct!\n"
+                       : "Transformation verification failed!\n");
     }
 
 private:
     std::ostream &os;
 };
 
-#endif // PRINTER_H
+#endif  // PRINTER_H

@@ -14,12 +14,12 @@
 
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Signals.h"
@@ -36,15 +36,14 @@ using namespace std;
 constexpr auto CPP_MANGLING_PREFIX = "_Z";
 constexpr auto RUST_MANGLING_PREFIX = "_ZN";
 
-#include "Printer.h"
 #include "Comparer.h"
+#include "Printer.h"
 
 namespace {
 
 /// the first positional argument, i.e., the source cpp ir file.
 llvm::cl::opt<std::string> opt_cpp_file {
-    llvm::cl::Positional,
-    llvm::cl::desc("c++ llvm ir file (i.e., add_cpp.ll)"),
+    llvm::cl::Positional, llvm::cl::desc("c++ llvm ir file (i.e., add_cpp.ll)"),
     llvm::cl::Required
 };
 
@@ -57,14 +56,14 @@ llvm::cl::opt<std::string> opt_rust_file {
 
 /// the patterns (i.e., function prefix) to match cpp and rust functions
 /// in the provided ir files.
-/// note that this could be changed by manually specifying the `-cpp-pattern` and
+/// note that this could be changed by manually specifying the `-cpp-pattern`
+/// and
 /// `-rust-pattern` options on the command line when running the translation
 /// validator.
 ///
 /// ps. the default values are `_Z` for cpp and `_ZN` for rust.
 llvm::cl::opt<std::string> opt_cpp_pattern {
-    "cpp-pattern",
-    llvm::cl::desc("pattern to match cpp functions in ir file"),
+    "cpp-pattern", llvm::cl::desc("pattern to match cpp functions in ir file"),
     llvm::cl::init(CPP_MANGLING_PREFIX)
 };
 
@@ -88,21 +87,23 @@ int main(int argc, char *argv[]) {
 
     auto cppModule = llvm_util::openInputFile(context, opt_cpp_file);
     auto rustModule = llvm_util::openInputFile(context, opt_rust_file);
-    
-    // set up the target library info by the data layout and target triple from `cppModule`.
-    // note: `targetLibraryInfo` is needed for different platforms.
+
+    // set up the target library info by the data layout and target triple from
+    // `cppModule`. note: `targetLibraryInfo` is needed for different platforms.
     auto &dataLayout = cppModule->getDataLayout();
     llvm::Triple targetTriple { cppModule->getTargetTriple() };
     llvm::TargetLibraryInfoWrapperPass targetLibraryInfo { targetTriple };
-    
+
     // initialize the llvm utilities and smt solver (i.e., z3).
     llvm_util::initializer llvmUtilInitializer { std::cout, dataLayout };
     smt::smt_initializer smtInitializer {};
 
-    // set up the verifier to compare the cpp and rust functions in llvm ir level.
-    llvm_util::Verifier verifier { targetLibraryInfo, smtInitializer, std::cout };
+    // set up the verifier to compare the cpp and rust functions in llvm ir
+    // level.
+    llvm_util::Verifier verifier {targetLibraryInfo, smtInitializer, std::cout };
 
-    Comparer comparer { *cppModule, *rustModule, opt_cpp_pattern, opt_rust_pattern, verifier };
+    Comparer comparer {*cppModule, *rustModule, opt_cpp_pattern,
+                      opt_rust_pattern, verifier };
     auto results = comparer.compareAll();
 
     Printer printer { std::cout };
