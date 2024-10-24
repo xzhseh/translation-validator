@@ -97,7 +97,8 @@ int main(int argc, char *argv[]) {
     }
 
     // set up the target library info by the data layout and target triple from
-    // `cpp_module`. note: `targetLibraryInfo` is needed for different platforms.
+    // `cpp_module`. note: `target_library_info` is needed for different
+    // platforms.
     auto &data_layout = cpp_module->getDataLayout();
     llvm::Triple target_triple { cpp_module->getTargetTriple() };
     llvm::TargetLibraryInfoWrapperPass target_library_info { target_triple };
