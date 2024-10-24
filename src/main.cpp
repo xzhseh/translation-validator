@@ -26,10 +26,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-using namespace tools;
-using namespace util;
 using namespace std;
-using namespace llvm_util;
 
 #define LLVM_ARGS_PREFIX ""
 #define ARGS_SRC_TGT
@@ -81,15 +78,15 @@ llvm::cl::opt<std::string> opt_rust_pattern {
 int main(int argc, char *argv[]) {
     // basic initializations
     llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-    llvm::InitLLVM X { argc, argv };
+    llvm::InitLLVM initLLVM { argc, argv };
     llvm::EnableDebugBuffering = true;
-    llvm::LLVMContext Context {};
+    llvm::LLVMContext context {};
 
     // parse command line arguments for the input files and (potential) patterns
     llvm::cl::ParseCommandLineOptions(argc, argv);
 
-    auto cppModule = openInputFile(Context, opt_cpp_file);
-    auto rustModule = openInputFile(Context, opt_rust_file);
+    auto cppModule = llvm_util::openInputFile(context, opt_cpp_file);
+    auto rustModule = llvm_util::openInputFile(context, opt_rust_file);
     
     // set up the target library info by the data layout and target triple from `cppModule`.
     // note: `targetLibraryInfo` is needed for different platforms.
@@ -102,7 +99,7 @@ int main(int argc, char *argv[]) {
     smt::smt_initializer smtInitializer {};
 
     // set up the verifier to compare the cpp and rust functions in llvm ir level.
-    Verifier verifier { targetLibraryInfo, smtInitializer, std::cout };
+    llvm_util::Verifier verifier { targetLibraryInfo, smtInitializer, std::cout };
 
     // Compare functions
     for (auto &cppFunc : *cppModule) {
