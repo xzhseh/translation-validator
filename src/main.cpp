@@ -1,3 +1,8 @@
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <utility>
+
 #include "cache/cache.h"
 #include "llvm_util/compare.h"
 #include "llvm_util/llvm2alive.h"
@@ -21,11 +26,6 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <utility>
-
 using namespace tools;
 using namespace util;
 using namespace std;
@@ -36,47 +36,73 @@ using namespace llvm_util;
 #define ARGS_REFINEMENT
 #include "llvm_util/cmd_args_list.h"
 
+#define CPP_MANGLING_PREFIX "_Z"
+#define RUST_MANGLING_PREFIX "_ZN"
+
+#include "Printer.h"
+
 namespace {
-llvm::cl::opt<std::string> opt_cpp_file(llvm::cl::Positional,
-    llvm::cl::desc("C++ bitcode file"),
-    llvm::cl::Required);
 
-llvm::cl::opt<std::string> opt_rust_file(llvm::cl::Positional,
-    llvm::cl::desc("Rust bitcode file"),
-    llvm::cl::Required);
+/// the first positional argument, i.e., the source cpp ir file.
+llvm::cl::opt<std::string> opt_cpp_file {
+    llvm::cl::Positional,
+    llvm::cl::desc("c++ llvm ir file (i.e., add_cpp.ll)"),
+    llvm::cl::Required
+};
 
-// Add options for function name patterns
-llvm::cl::opt<std::string> opt_cpp_pattern("cpp-pattern",
-    llvm::cl::desc("Pattern to match C++ functions"),
-    llvm::cl::init("_Z"));
+/// the second positional argument, i.e., the target/translated rust ir file.
+llvm::cl::opt<std::string> opt_rust_file {
+    llvm::cl::Positional,
+    llvm::cl::desc("rust llvm ir file (i.e., add_rust.ll)"),
+    llvm::cl::Required
+};
 
-llvm::cl::opt<std::string> opt_rust_pattern("rust-pattern",
-    llvm::cl::desc("Pattern to match Rust functions"),
-    llvm::cl::init("_ZN"));
-}
+/// the patterns (i.e., function prefix) to match cpp and rust functions
+/// in the provided ir files.
+/// note that this could be changed by manually specifying the `-cpp-pattern` and
+/// `-rust-pattern` options on the command line when running the translation
+/// validator.
+///
+/// ps. the default values are `_Z` for cpp and `_ZN` for rust.
+llvm::cl::opt<std::string> opt_cpp_pattern {
+    "cpp-pattern",
+    llvm::cl::desc("pattern to match cpp functions in ir file"),
+    llvm::cl::init(CPP_MANGLING_PREFIX)
+};
 
-int main(int argc, char **argv) {
-    // Proper initialization
+llvm::cl::opt<std::string> opt_rust_pattern {
+    "rust-pattern",
+    llvm::cl::desc("pattern to match rust functions in ir file"),
+    llvm::cl::init(RUST_MANGLING_PREFIX)
+};
+
+}  // namespace
+
+int main(int argc, char *argv[]) {
+    // basic initializations
     llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-    llvm::InitLLVM X(argc, argv);
+    llvm::InitLLVM X { argc, argv };
     llvm::EnableDebugBuffering = true;
-    llvm::LLVMContext Context;
+    llvm::LLVMContext Context {};
 
-    // Parse command line
+    // parse command line arguments for the input files and (potential) patterns
     llvm::cl::ParseCommandLineOptions(argc, argv);
 
-    // Load modules
     auto cppModule = openInputFile(Context, opt_cpp_file);
     auto rustModule = openInputFile(Context, opt_rust_file);
     
-    // Setup verifier
-    auto &DL = cppModule->getDataLayout();
-    llvm::Triple targetTriple(cppModule->getTargetTriple());
-    llvm::TargetLibraryInfoWrapperPass TLI(targetTriple);
+    // set up the target library info by the data layout and target triple from `cppModule`.
+    // note: `targetLibraryInfo` is needed for different platforms.
+    auto &dataLayout = cppModule->getDataLayout();
+    llvm::Triple targetTriple { cppModule->getTargetTriple() };
+    llvm::TargetLibraryInfoWrapperPass targetLibraryInfo { targetTriple };
     
-    llvm_util::initializer llvm_util_init(std::cout, DL);
-    smt::smt_initializer smt_init;
-    Verifier verifier(TLI, smt_init, std::cout);
+    // initialize the llvm utilities and smt solver (i.e., z3).
+    llvm_util::initializer llvmUtilInitializer { std::cout, dataLayout };
+    smt::smt_initializer smtInitializer {};
+
+    // set up the verifier to compare the cpp and rust functions in llvm ir level.
+    Verifier verifier { targetLibraryInfo, smtInitializer, std::cout };
 
     // Compare functions
     for (auto &cppFunc : *cppModule) {
@@ -94,11 +120,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    // Print summary
-    std::cout << "Summary:\n"
-              << "  " << verifier.num_correct << " correct translations\n"
-              << "  " << verifier.num_unsound << " incorrect translations\n"
-              << "  " << verifier.num_failed << " failed to prove\n";
+    Printer printer { std::cout };
+    printer.printSummary(verifier);
 
     return verifier.num_errors > 0;
 }
