@@ -9,7 +9,7 @@
 #include "llvm_util/compare.h"
 
 class Comparer {
-   public:
+public:
     struct ComparisonResult {
         bool success;
         std::string cpp_name;
@@ -28,13 +28,13 @@ class Comparer {
           verifier_(verifier) {}
 
     // Compare all functions and return results
-    std::vector<ComparisonResult> compareAll() {
+    std::vector<ComparisonResult> compare() {
         std::vector<ComparisonResult> results;
 
         for (auto &cpp_func : *cpp_module_) {
-            if (shouldSkipFunction(cpp_func)) continue;
+            if (should_skip_function(cpp_func)) continue;
 
-            auto result = findAndCompareMatchingFunction(cpp_func);
+            auto result = find_and_compare_matching_function(cpp_func);
             if (result.has_value()) {
                 results.push_back(std::move(*result));
             }
@@ -44,12 +44,12 @@ class Comparer {
     }
 
    private:
-    bool shouldSkipFunction(const llvm::Function &func) const {
+    bool should_skip_function(const llvm::Function &func) const {
         return func.isDeclaration() ||
                !func.getName().starts_with(cpp_pattern_);
     }
 
-    std::optional<ComparisonResult> findAndCompareMatchingFunction(
+    std::optional<ComparisonResult> find_and_compare_matching_function(
         llvm::Function &cpp_func) {
         for (auto &rust_func : *rust_module_) {
             if (rust_func.isDeclaration()) continue;
@@ -76,7 +76,7 @@ class Comparer {
         return std::nullopt;  // No matching Rust function found
     }
 
-   private:
+private:
     llvm::Module *cpp_module_;
     llvm::Module *rust_module_;
     std::string cpp_pattern_;
