@@ -33,10 +33,11 @@ using namespace std;
 #define ARGS_REFINEMENT
 #include "llvm_util/cmd_args_list.h"
 
-#define CPP_MANGLING_PREFIX "_Z"
-#define RUST_MANGLING_PREFIX "_ZN"
+constexpr auto CPP_MANGLING_PREFIX = "_Z";
+constexpr auto RUST_MANGLING_PREFIX = "_ZN";
 
 #include "Printer.h"
+#include "Comparer.h"
 
 namespace {
 
@@ -101,21 +102,8 @@ int main(int argc, char *argv[]) {
     // set up the verifier to compare the cpp and rust functions in llvm ir level.
     llvm_util::Verifier verifier { targetLibraryInfo, smtInitializer, std::cout };
 
-    // Compare functions
-    for (auto &cppFunc : *cppModule) {
-        if (cppFunc.isDeclaration()) continue;
-        if (!cppFunc.getName().starts_with(opt_cpp_pattern)) continue;
-
-        // Find matching Rust function
-        for (auto &rustFunc : *rustModule) {
-            if (rustFunc.isDeclaration()) continue;
-            if (!rustFunc.getName().starts_with(opt_rust_pattern)) continue;
-
-            if (!verifier.compareFunctions(cppFunc, rustFunc)) {
-                // Handle verification failure
-            }
-        }
-    }
+    Comparer comparer { *cppModule, *rustModule, opt_cpp_pattern, opt_rust_pattern, verifier };
+    auto results = comparer.compareAll();
 
     Printer printer { std::cout };
     printer.printSummary(verifier);
