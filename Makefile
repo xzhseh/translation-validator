@@ -8,6 +8,9 @@ run:
 
 build_and_run: build run
 
+generate_ir:
+	@python3 scripts/src2ir.py
+
 clean:
 	rm -rf build
 

@@ -8,7 +8,7 @@
 
 const std::string DEFAULT_IR_DIR = "examples/ir/";
 const std::string CPP_IR_SUFFIX = "_cpp.ll";
-const std::string RUST_IR_SUFFIX = "_rust.ll";
+const std::string RUST_IR_SUFFIX = "_rs.ll";
 
 static std::string cpp_path_;
 static std::string rust_path_;
@@ -45,7 +45,8 @@ private:
             auto message = get_language_name(is_cpp) + " ir file not found: " + str_path(path);
             print_error(message);
             message = std::string("please generate the ") + get_language_name(is_cpp) +
-                      " ir file for " + str_path(path);
+                      " ir file for " + str_path(path) +
+                      " by running `make generate_ir`";
             print_error(message);
             return false;
         }
