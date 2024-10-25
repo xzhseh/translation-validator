@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 
 #include "llvm_util/compare.h"
 #include "llvm_util/llvm2alive.h"
@@ -29,6 +30,7 @@ using namespace std;
 
 constexpr auto CPP_MANGLING_PREFIX = "_Z";
 constexpr auto RUST_MANGLING_PREFIX = "_ZN";
+constexpr auto SRC_UB_PROMPT = "WARNING: Source function is always UB";
 
 #include "Comparer.h"
 #include "Printer.h"
@@ -57,10 +59,6 @@ llvm::cl::opt<std::string> opt_rust_pattern {
 
 }  // namespace
 
-void print_error(const std::string &message) {
-    std::cerr << "[main] " << message << "\n";
-}
-
 auto open_input_file(llvm::LLVMContext &context,
                      const std::string &path) -> std::unique_ptr<llvm::Module> {
     llvm::SMDiagnostic err {};
@@ -80,19 +78,20 @@ int main(int argc, char *argv[]) {
     llvm::InitLLVM init_llvm { argc, argv };
     llvm::EnableDebugBuffering = true;
     llvm::LLVMContext context {};
+    Printer printer { std::cout };
 
     // preprocess the command line arguments
     Preprocessor preprocessor { argc, argv };
     std::vector<char *> preprocessed_argv { argv[0] };
     if (!preprocessor.process(preprocessed_argv)) {
-        print_error("preprocess failed");
+        printer.print_error("main", "preprocess failed");
         return EXIT_FAILURE;
     }
 
     auto cpp_module = open_input_file(context, preprocessed_argv[1]);
     auto rust_module = open_input_file(context, preprocessed_argv[2]);
     if (!cpp_module || !rust_module) {
-        print_error("failed to open input files");
+        printer.print_error("main", "failed to open input files");
         return EXIT_FAILURE;
     }
 
@@ -109,14 +108,32 @@ int main(int argc, char *argv[]) {
 
     // set up the verifier to compare the cpp and rust functions in llvm ir
     // level.
-    llvm_util::Verifier verifier {target_library_info, smt_initializer, std::cout };
+    std::stringstream verifier_buffer {};
+    llvm_util::Verifier verifier { target_library_info, smt_initializer,
+                                  verifier_buffer };
 
-    Comparer comparer {*cpp_module, *rust_module, opt_cpp_pattern,
+    Comparer comparer { *cpp_module, *rust_module, opt_cpp_pattern,
                       opt_rust_pattern, verifier };
     auto results = comparer.compare();
 
-    Printer printer { std::cout };
-    printer.print_summary(verifier);
+    // check for source undefined behavior
+    std::string verifier_output { verifier_buffer.str() };
+    if (verifier_output.find(SRC_UB_PROMPT) != std::string::npos) {
+        printer.print_src_ub_prompt();
 
-    return verifier.num_errors > 0;
+        llvm_util::Verifier reversed_verifier { target_library_info,
+                                                 smt_initializer,
+                                                 std::cout };
+
+        // Switch the order of modules
+        Comparer reversed_comparer { *rust_module, *cpp_module, opt_rust_pattern,
+                                       opt_cpp_pattern, reversed_verifier };
+        auto reversed_results = reversed_comparer.compare();
+
+        printer.print_summary(reversed_verifier);
+        return reversed_verifier.num_errors > 0;
+    } else {
+        printer.print_summary(verifier);
+        return verifier.num_errors > 0;
+    }
 }
