@@ -29,8 +29,8 @@ public:
             exit(1);
         }
 
-        cpp_path_ = DEFAULT_IR_DIR + base_name_ + CPP_IR_SUFFIX;
-        rust_path_ = DEFAULT_IR_DIR + base_name_ + RUST_IR_SUFFIX;
+        cpp_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + CPP_IR_SUFFIX;
+        rust_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + RUST_IR_SUFFIX;
 
         argv.push_back(&cpp_path_[0]);
         argv.push_back(&rust_path_[0]);

@@ -12,7 +12,7 @@ generate_ir:
 	@python3 scripts/src2ir.py
 
 clean_ir:
-	@rm examples/ir/*.ll
+	@rm examples/ir/*/*.ll
 
 clean_and_generate_ir: clean_ir generate_ir
 
