@@ -1,6 +1,7 @@
 int access_array(int index) {
     int arr[10] {};
 
+    // to preserve the memory layout as rust's
     arr[0] = 0;
     arr[1] = 1;
     arr[2] = 2;
@@ -12,9 +13,9 @@ int access_array(int index) {
     arr[8] = 8;
     arr[9] = 9;
 
-    return arr[index];
-}
+    if (index < 0 || index >= 10) {
+        return -1;
+    }
 
-int main() {
-    int _ret = access_array(10);
+    return arr[index];
 }

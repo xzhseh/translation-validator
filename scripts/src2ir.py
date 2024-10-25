@@ -10,10 +10,9 @@ def convert_cpp_to_ir(source_folder, ir_folder):
             if not os.path.exists(ir_path):
                 # note for the clang++ command:
                 #   -O0: disable optimizations
-                #   -fno-delete-null-pointer-checks: prevent optimizations around undefined behavior
                 #   -S: output assembly (llvm ir in this case)
                 #   -emit-llvm: generate llvm ir instead of native assembly
-                command = f"clang++ -O0 -fno-delete-null-pointer-checks -S -emit-llvm {source_path} -o {ir_path}"
+                command = f"clang++ -O0 -S -emit-llvm {source_path} -o {ir_path}"
                 subprocess.run(command, shell=True, check=True)
                 print(f"converted {file} to {ir_path}")
             else:
@@ -38,7 +37,7 @@ def convert_rs_to_ir(source_folder, ir_folder):
 def main():
     source_folder = 'examples/source'
     ir_folder = 'examples/ir'
-    
+
     if not os.path.exists(ir_folder):
         os.makedirs(ir_folder)
 
