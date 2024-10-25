@@ -11,18 +11,34 @@
 #define BOLD_BLUE "\033[1;34m"
 #define RESET_COLOR "\033[0m"
 
+struct ComparisonResult {
+    bool success;
+    std::string cpp_name;
+    std::string rust_name;
+    std::string error_message;
+};
+
 class Printer {
 public:
     explicit Printer(std::ostream &os) : os(os) {}
 
     /// print verification summary
     void print_summary(const llvm_util::Verifier &verifier,
+                       const ComparisonResult &result,
                        const std::string &verifier_output = "") const {
         if (!verifier_output.empty()) {
             os << verifier_output << std::endl;
         }
 
         os << BOLD_BLUE << "========================================\n";
+        os << "COMPARING:\n"
+           << "  " << result.cpp_name << BOLD_GREEN << " (source)" << BOLD_BLUE
+           << " <-> " << result.rust_name << BOLD_GREEN << " (target)"
+           << RESET_COLOR << "\n";
+        if (!result.error_message.empty()) {
+            os << BOLD_RED << "  error: " << result.error_message << "\n";
+        }
+        os << BOLD_BLUE;
         os << "SUMMARY:\n"
            << "  " << BOLD_GREEN << verifier.num_correct << " correct translations\n"
            << "  " << BOLD_RED << verifier.num_unsound << " incorrect translations\n"

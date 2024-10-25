@@ -8,47 +8,47 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frtti -fexceptions")
 
-# Find LLVM
+# find llvm
 set(LLVM_DIR "/path/to/custom/llvm_home/llvm-project/build/lib/cmake/llvm")
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-# Include LLVM headers
+# include llvm headers
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
-# Find Z3
+# find z3
 find_package(Z3 REQUIRED)
 include_directories(${Z3_INCLUDE_DIRS})
 add_definitions(${Z3_DEFINITIONS})
 
-# Set the path to Alive2
+# set the path to alive2
 set(ALIVE2_DIR "/path/to/alive2")
 
-# Include Alive2 headers
+# include alive2 headers
 include_directories(${ALIVE2_DIR})
 
-# Add your source files
+# add source files
 add_executable(translation_validator src/main.cpp)
 
-# Link against LLVM, Z3, and Alive2
+# link against llvm, z3, and alive2
 target_link_libraries(translation_validator PRIVATE
-    # note, you may need to change `.dylib` to `.so` or `.a` depending on your OS
+    # note: you may need to change `.dylib` to `.so` or `.a` depending on your OS
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMCore.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMSupport.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMIRReader.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMBitReader.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMMC.dylib
     /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMOption.dylib
-    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMAnalysis.dylib  # For TargetLibraryInfo
-    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTarget.dylib    # For Triple
-    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTargetParser.dylib  # For Triple parsing
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMAnalysis.dylib  # for `TargetLibraryInfo`
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTarget.dylib    # for `Triple`
+    /path/to/custom/llvm_home/llvm-project/build/lib/libLLVMTargetParser.dylib  # for `Triple` parsing
 
     ${Z3_LIBRARIES}
     ${ALIVE2_DIR}/build/libir.a
     ${ALIVE2_DIR}/build/libsmt.a
     ${ALIVE2_DIR}/build/libutil.a
     ${ALIVE2_DIR}/build/libtools.a
-    ${ALIVE2_DIR}/build/libllvm_util.a  # For llvm_util::initializer
+    ${ALIVE2_DIR}/build/libllvm_util.a  # for `llvm_util::initializer`
 )

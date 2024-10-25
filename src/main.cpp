@@ -1,4 +1,3 @@
-#include <iostream>
 #include <sstream>
 
 #include "llvm_util/compare.h"
@@ -40,12 +39,7 @@ namespace {
 
 /// the patterns (i.e., function prefix) to match cpp and rust functions
 /// in the provided ir files.
-/// note that this could be changed by manually specifying the `-cpp-pattern`
-/// and
-/// `-rust-pattern` options on the command line when running the translation
-/// validator.
-///
-/// ps. the default values are `_Z` for cpp and `_ZN` for rust.
+/// ps. the values are `_Z` for cpp and `_ZN` for rust.
 llvm::cl::opt<std::string> opt_cpp_pattern {
     "cpp-pattern", llvm::cl::desc("pattern to match cpp functions in ir file"),
     llvm::cl::init(CPP_MANGLING_PREFIX)
@@ -116,7 +110,7 @@ int main(int argc, char *argv[]) {
                       opt_rust_pattern, verifier };
     auto results = comparer.compare();
 
-    // check for source undefined behavior
+    // check for potential source undefined behavior
     std::string verifier_output { verifier_buffer.str() };
     if (verifier_output.find(SRC_UB_PROMPT) != std::string::npos) {
         printer.print_src_ub_prompt();
@@ -125,15 +119,15 @@ int main(int argc, char *argv[]) {
                                                  smt_initializer,
                                                  std::cout };
 
-        // Switch the order of modules
+        // switch the order of modules
         Comparer reversed_comparer { *rust_module, *cpp_module, opt_rust_pattern,
                                        opt_cpp_pattern, reversed_verifier };
         auto reversed_results = reversed_comparer.compare();
 
-        printer.print_summary(reversed_verifier);
+        printer.print_summary(reversed_verifier, reversed_results);
         return reversed_verifier.num_errors > 0;
     } else {
-        printer.print_summary(verifier, verifier_output);
+        printer.print_summary(verifier, results, verifier_output);
         return verifier.num_errors > 0;
     }
 }

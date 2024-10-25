@@ -8,15 +8,10 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm_util/compare.h"
 
+#include "Printer.h"
+
 class Comparer {
 public:
-    struct ComparisonResult {
-        bool success;
-        std::string cpp_name;
-        std::string rust_name;
-        std::string error_message;
-    };
-
     Comparer(llvm::Module &cpp_module, llvm::Module &rust_module,
              llvm::cl::opt<std::string> &cpp_pattern,
              llvm::cl::opt<std::string> &rust_pattern,
@@ -25,63 +20,101 @@ public:
           rust_module_(&rust_module),
           cpp_pattern_(cpp_pattern),
           rust_pattern_(rust_pattern),
-          verifier_(verifier) {}
+          verifier_(verifier),
+          printer_(std::cout) {}
 
-    // Compare all functions and return results
-    std::vector<ComparisonResult> compare() {
-        std::vector<ComparisonResult> results;
+    /// compare the source function in `cpp_module` with the target function
+    /// in `rust_module`.
+    /// note: currently only supports one-to-one comparison.
+    ComparisonResult compare() {
+        std::vector<llvm::Function *> cpp_funcs {};
+        std::vector<llvm::Function *> rust_funcs {};
 
         for (auto &cpp_func : *cpp_module_) {
-            if (should_skip_function(cpp_func)) continue;
-
-            auto result = find_and_compare_matching_function(cpp_func);
-            if (result.has_value()) {
-                results.push_back(std::move(*result));
+            if (should_skip_function(cpp_func, cpp_pattern_)) {
+                continue;
             }
+            cpp_funcs.push_back(&cpp_func);
         }
-
-        return results;
-    }
-
-   private:
-    bool should_skip_function(const llvm::Function &func) const {
-        return func.isDeclaration() ||
-               !func.getName().starts_with(cpp_pattern_);
-    }
-
-    std::optional<ComparisonResult> find_and_compare_matching_function(
-        llvm::Function &cpp_func) {
         for (auto &rust_func : *rust_module_) {
-            if (rust_func.isDeclaration()) continue;
-            if (!rust_func.getName().starts_with(rust_pattern_)) continue;
-
-            ComparisonResult result;
-            result.cpp_name = cpp_func.getName().str();
-            result.rust_name = rust_func.getName().str();
-
-            try {
-                result.success =
-                    verifier_.compareFunctions(cpp_func, rust_func);
-                if (!result.success) {
-                    result.error_message = "Functions are not equivalent";
-                }
-                return result;
-            } catch (const std::exception &e) {
-                result.success = false;
-                result.error_message = e.what();
-                return result;
+            if (should_skip_function(rust_func, rust_pattern_)) {
+                continue;
             }
+            rust_funcs.push_back(&rust_func);
         }
 
-        return std::nullopt;  // No matching Rust function found
+        if (auto cpp_empty = check_empty(cpp_funcs)) {
+            return *cpp_empty;
+        }
+        if (auto rust_empty = check_empty(rust_funcs)) {
+            return *rust_empty;
+        }
+        if (auto cpp_multiple = check_multiple(cpp_funcs)) {
+            return *cpp_multiple;
+        }
+        if (auto rust_multiple = check_multiple(rust_funcs)) {
+            return *rust_multiple;
+        }
+
+        auto cpp_func = cpp_funcs[0];
+        auto rust_func = rust_funcs[0];
+
+        bool success { false };
+        try {
+            success = verifier_.compareFunctions(*cpp_func, *rust_func);
+        } catch (const std::exception &e) {
+            printer_.print_error("comparer", e.what());
+            return ComparisonResult {
+                .success = false,
+                .error_message = e.what()
+            };
+        }
+
+        return ComparisonResult {
+            .success = success,
+            .cpp_name = cpp_func->getName().str(),
+            .rust_name = rust_func->getName().str(),
+            .error_message = success ? "" : "functions are not semantically equivalent"
+        };
     }
 
 private:
+    /// check if the function should be skipped
+    auto should_skip_function(const llvm::Function &func,
+                              const std::string &pattern) -> bool const {
+        return func.isDeclaration() || !func.getName().starts_with(pattern);
+    }
+
+    auto check_empty(const std::vector<llvm::Function *> &funcs)
+        -> std::optional<ComparisonResult> {
+        if (funcs.empty()) {
+            printer_.print_error("comparer", "no functions found");
+            return ComparisonResult {
+                .success = false,
+                .error_message = "no functions found"
+            };
+        }
+        return std::nullopt;
+    }
+
+    auto check_multiple(const std::vector<llvm::Function *> &funcs)
+        -> std::optional<ComparisonResult> {
+        if (funcs.size() > 1) {
+            printer_.print_error("comparer", "multiple functions found");
+            return ComparisonResult {
+                .success = false,
+                .error_message = "multiple functions found"
+            };
+        }
+        return std::nullopt;
+    }
+
     llvm::Module *cpp_module_;
     llvm::Module *rust_module_;
     std::string cpp_pattern_;
     std::string rust_pattern_;
     llvm_util::Verifier &verifier_;
+    Printer printer_;
 };
 
 #endif  // COMPARER_H

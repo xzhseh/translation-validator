@@ -1,4 +1,4 @@
-int access_array(int index) {
+int access_array(unsigned int index) {
     int arr[10] {};
 
     // to preserve the memory layout as rust's
@@ -13,9 +13,9 @@ int access_array(int index) {
     arr[8] = 8;
     arr[9] = 9;
 
-    if (index < 0 || index >= 10) {
-        return -1;
-    }
-
-    return arr[index];
+    // a subtle unsigned integer overflow "feature" in cpp,
+    // i.e., implicitly wraps around.
+    // e.g., when considering the input `index` as 0xfffffffc (4294967292, -4),
+    // this function is more *defined* than the rust (panic) version.
+    return arr[10 + index];
 }
