@@ -16,7 +16,12 @@ public:
     explicit Printer(std::ostream &os) : os(os) {}
 
     /// print verification summary
-    void print_summary(const llvm_util::Verifier &verifier) const {
+    void print_summary(const llvm_util::Verifier &verifier,
+                       const std::string &verifier_output = "") const {
+        if (!verifier_output.empty()) {
+            os << verifier_output << std::endl;
+        }
+
         os << BOLD_BLUE << "========================================\n";
         os << "SUMMARY:\n"
            << "  " << BOLD_GREEN << verifier.num_correct << " correct translations\n"

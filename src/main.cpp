@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
         printer.print_summary(reversed_verifier);
         return reversed_verifier.num_errors > 0;
     } else {
-        printer.print_summary(verifier);
+        printer.print_summary(verifier, verifier_output);
         return verifier.num_errors > 0;
     }
 }
