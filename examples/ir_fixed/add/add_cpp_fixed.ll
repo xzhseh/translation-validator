@@ -4,7 +4,7 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128-Fn32"
 target triple = "arm64-apple-macosx14.0.0"
 
 ; Function Attrs: mustprogress noinline nounwind optnone ssp uwtable(sync)
-define i32 @_Z3addii(i32 noundef %0, i32 noundef %1) #0 {
+define noundef i32 @_Z3addii(i32 noundef %0, i32 noundef %1) #0 {
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
   store i32 %0, ptr %3, align 4
