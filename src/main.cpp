@@ -72,20 +72,20 @@ int main(int argc, char *argv[]) {
     llvm::InitLLVM init_llvm { argc, argv };
     llvm::EnableDebugBuffering = true;
     llvm::LLVMContext context {};
-    Printer printer { std::cout };
+    Printer printer { std::cout, "main" };
 
     // preprocess the command line arguments
     Preprocessor preprocessor { argc, argv };
     std::vector<char *> preprocessed_argv { argv[0] };
     if (!preprocessor.process(preprocessed_argv)) {
-        printer.print_error("main", "preprocess failed");
+        printer.print_error("preprocess failed");
         return EXIT_FAILURE;
     }
 
     auto cpp_module = open_input_file(context, preprocessed_argv[1]);
     auto rust_module = open_input_file(context, preprocessed_argv[2]);
     if (!cpp_module || !rust_module) {
-        printer.print_error("main", "failed to open input files");
+        printer.print_error("failed to open input files");
         return EXIT_FAILURE;
     }
 

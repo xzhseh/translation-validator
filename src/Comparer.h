@@ -21,7 +21,7 @@ public:
           cpp_pattern_(cpp_pattern),
           rust_pattern_(rust_pattern),
           verifier_(verifier),
-          printer_(std::cout) {}
+          printer_(std::cout, "comparer") {}
 
     /// compare the source function in `cpp_module` with the target function
     /// in `rust_module`.
@@ -63,7 +63,7 @@ public:
         try {
             success = verifier_.compareFunctions(*cpp_func, *rust_func);
         } catch (const std::exception &e) {
-            printer_.print_error("comparer", e.what());
+            printer_.print_error(e.what());
             return ComparisonResult {
                 .success = false,
                 .error_message = e.what()
@@ -88,7 +88,7 @@ private:
     auto check_empty(const std::vector<llvm::Function *> &funcs)
         -> std::optional<ComparisonResult> {
         if (funcs.empty()) {
-            printer_.print_error("comparer", "no functions found");
+            printer_.print_error("no functions found");
             return ComparisonResult {
                 .success = false,
                 .error_message = "no functions found"
@@ -100,7 +100,7 @@ private:
     auto check_multiple(const std::vector<llvm::Function *> &funcs)
         -> std::optional<ComparisonResult> {
         if (funcs.size() > 1) {
-            printer_.print_error("comparer", "multiple functions found");
+            printer_.print_error("multiple functions found");
             return ComparisonResult {
                 .success = false,
                 .error_message = "multiple functions found"
