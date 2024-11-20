@@ -4,7 +4,7 @@ build:
 	@bash scripts/build.sh
 
 run:
-	@./build/translation_validator $(filter-out $@ build_and_run, $(MAKECMDGOALS))
+	@./build/translation_validator $(filter-out $@ build_and_run, $(MAKECMDGOALS)) $(ARGS)
 
 build_and_run: build run
 
