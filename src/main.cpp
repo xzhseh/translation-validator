@@ -76,6 +76,8 @@ int main(int argc, char *argv[]) {
 
     // preprocess the command line arguments
     Preprocessor preprocessor { argc, argv };
+    auto [cpp_func_name, rust_func_name] = preprocessor.get_function_names();
+    bool use_specified_function_name = preprocessor.use_specified_function_name();
     std::vector<char *> preprocessed_argv { argv[0] };
     if (!preprocessor.process(preprocessed_argv)) {
         printer.print_error("preprocess failed");
@@ -107,8 +109,14 @@ int main(int argc, char *argv[]) {
                                   verifier_buffer };
 
     Comparer comparer { *cpp_module, *rust_module, opt_cpp_pattern,
-                      opt_rust_pattern, verifier };
+                        opt_rust_pattern, verifier, use_specified_function_name,
+                        cpp_func_name, rust_func_name };
     auto results = comparer.compare();
+    if (!results.success && results.error_message.find("multiple functions") != std::string::npos) {
+        // indicates the multiple functions are found, but no function name has
+        // been specified with the corresponding options.
+        return EXIT_FAILURE;
+    }
 
     // check for potential source undefined behavior
     std::string verifier_output { verifier_buffer.str() };

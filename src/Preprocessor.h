@@ -22,18 +22,29 @@ static std::string rust_path_;
 class Preprocessor {
 public:
     Preprocessor(int argc, char *argv[]) {
-        if (argc != 2 && argc != 3) {
-            printer_.print_error("preprocessor expects at most 3 arguments");
+        if (argc < 1 || argc > 5) {
+            printer_.print_error("preprocessor expects at least 1 and at most 5 arguments");
             exit(EXIT_FAILURE);
         }
-        base_name_ = std::string(argv[1]);
-        if (argc == 3) {
-            // todo: refactor this part
-            if (std::string(argv[2]) == "--fixed") {
-                is_fixed_ = true;
+        for (int i = 0; i < argc; ++i) {
+            std::string str_arg { argv[i] };
+            if (str_arg.starts_with("--")) {
+                // parse the option
+                if (str_arg == "--fixed") {
+                    is_fixed_ = true;
+                } else if (str_arg.starts_with("--cpp-func")) {
+                    cpp_func_name_ = str_arg.substr(11);
+                    use_specified_function_name_ = true;
+                } else if (str_arg.starts_with("--rust-func")) {
+                    rust_func_name_ = str_arg.substr(12);
+                    use_specified_function_name_ = true;
+                } else {
+                    printer_.print_error("unknown option: " + str_arg);
+                    exit(EXIT_FAILURE);
+                }
             } else {
-                printer_.print_error("unknown argument: " + std::string(argv[2]));
-                exit(EXIT_FAILURE);
+                // the base name of the ir files, e.g., `add`.
+                base_name_ = str_arg;
             }
         }
     }
@@ -58,6 +69,14 @@ public:
 
         return check_ir_file_exists(cpp_path_, true, is_fixed_) &&
                check_ir_file_exists(rust_path_, false);
+    }
+
+    auto get_function_names() -> std::pair<std::string, std::string> {
+        return { cpp_func_name_, rust_func_name_ };
+    }
+
+    auto use_specified_function_name() -> bool {
+        return use_specified_function_name_;
     }
 
 private:
@@ -92,6 +111,9 @@ private:
     }
 
     std::string base_name_ { "" };
+    std::string cpp_func_name_ { "" };
+    std::string rust_func_name_ { "" };
+    bool use_specified_function_name_ { false };
     bool is_fixed_ { false };
     Printer printer_ { std::cout, "preprocessor" };
 };
