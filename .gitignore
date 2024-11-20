@@ -8,6 +8,4 @@ CMakeLists.txt
 
 .cache
 
-/compile_commands.json
-
 /examples/ir/

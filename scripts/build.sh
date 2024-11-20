@@ -3,9 +3,8 @@
 # enable stricter error handling
 set -euo pipefail
 
-# remove existing build directory and compile_commands.json
+# remove existing build directory
 rm -rf build
-rm -f compile_commands.json
 
 # create new build directory and change to it
 mkdir build && cd build || exit 1
@@ -20,14 +19,6 @@ fi
 if ! make; then
     echo "[build.sh] build failed"
     exit 1
-fi
-
-# move `compile_commands.json` to root directory
-if [ -f compile_commands.json ]; then
-    mv compile_commands.json ..
-    echo "[build.sh] moved \`compile_commands.json\` to root directory"
-else
-    echo "[build.sh] warning: \`compile_commands.json\` not found"
 fi
 
 echo "[build.sh] build completed successfully"
