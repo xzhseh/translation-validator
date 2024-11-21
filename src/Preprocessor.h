@@ -22,11 +22,11 @@ static std::string rust_path_;
 class Preprocessor {
 public:
     Preprocessor(int argc, char *argv[]) {
-        if (argc < 1 || argc > 5) {
-            printer_.print_error("preprocessor expects at least 1 and at most 5 arguments");
+        if (argc < 2 || argc > 5) {
+            printer_.print_error("preprocessor expects at least 2 and at most 5 arguments");
             exit(EXIT_FAILURE);
         }
-        for (int i = 0; i < argc; ++i) {
+        for (int i = 1; i < argc; ++i) {
             std::string str_arg { argv[i] };
             if (str_arg.starts_with("--")) {
                 // parse the option
@@ -44,7 +44,12 @@ public:
                 }
             } else {
                 // the base name of the ir files, e.g., `add`.
-                base_name_ = str_arg;
+                if (base_name_.empty()) {
+                    base_name_ = str_arg;
+                } else {
+                    printer_.print_error("expect only one base name");
+                    exit(EXIT_FAILURE);
+                }
             }
         }
     }
