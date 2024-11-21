@@ -14,7 +14,9 @@ const std::string FIXED_IR_DIR = "examples/ir_fixed/";
 
 const std::string CPP_IR_SUFFIX = "_cpp.ll";
 const std::string RUST_IR_SUFFIX = "_rs.ll";
+
 const std::string FIXED_CPP_IR_SUFFIX = "_cpp_fixed.ll";
+const std::string FIXED_RUST_IR_SUFFIX = "_rs_fixed.ll";
 
 static std::string cpp_path_;
 static std::string rust_path_;
@@ -60,14 +62,23 @@ public:
             exit(EXIT_FAILURE);
         }
 
-        // currently only portions of the cpp ir files need to be fixed,
-        // e.g., `add_cpp.ll` -> `add_cpp_fixed.ll`.
         if (is_fixed_) {
+            // probe for both fixed and original ir files
             cpp_path_ = FIXED_IR_DIR + base_name_ + "/" + base_name_ + FIXED_CPP_IR_SUFFIX;
+            rust_path_ = FIXED_IR_DIR + base_name_ + "/" + base_name_ + FIXED_RUST_IR_SUFFIX;
+            if (!std::filesystem::exists(cpp_path_)) {
+                // fallback to the original ir files
+                cpp_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + CPP_IR_SUFFIX;
+            }
+            if (!std::filesystem::exists(rust_path_)) {
+                // same here
+                rust_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + RUST_IR_SUFFIX;
+            }
         } else {
+            // only probe for the original ir files
             cpp_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + CPP_IR_SUFFIX;
+            rust_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + RUST_IR_SUFFIX;
         }
-        rust_path_ = DEFAULT_IR_DIR + base_name_ + "/" + base_name_ + RUST_IR_SUFFIX;
 
         argv.push_back(&cpp_path_[0]);
         argv.push_back(&rust_path_[0]);
@@ -93,7 +104,7 @@ private:
                 printer_.print_error("fixed " + get_language_name(is_cpp) +
                                      " ir file not found: " + str_path(path));
                 printer_.print_error("please ensure you are specifying the existing fixed "
-                                     "cpp ir file in the `examples/ir_fixed/` directory");
+                                     "cpp/rust ir file in the `examples/ir_fixed/` directory");
                 exit(EXIT_FAILURE);
             }
             auto message = get_language_name(is_cpp) + " ir file not found: " + str_path(path);
