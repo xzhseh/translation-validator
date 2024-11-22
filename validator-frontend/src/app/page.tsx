@@ -1,4 +1,5 @@
 import ValidationForm from '@/components/ValidationForm';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 export default function Home() {
     return (
@@ -14,7 +15,9 @@ export default function Home() {
           </div>
   
           <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-gray-100">
-            <ValidationForm />
+            <ErrorBoundary>
+              <ValidationForm />
+            </ErrorBoundary>
           </div>
   
           <footer className="mt-12 text-center">

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import CodeEditor from './CodeEditor';
 import ExampleSelector from './ExampleSelector';
 import { ValidationResult } from '@/types/validator';
+import LLVMIRModal from './LLVMIRModal';
 
 export default function CodeEditorForm() {
   const [cppCode, setCppCode] = useState('');
@@ -11,29 +12,62 @@ export default function CodeEditorForm() {
   const [functionName, setFunctionName] = useState('');
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showIRModal, setShowIRModal] = useState(false);
+  const [cppIR, setCppIR] = useState('');
+  const [rustIR, setRustIR] = useState('');
+  const [isGeneratingIR, setIsGeneratingIR] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cppCode || !rustCode) return;
 
-    setIsLoading(true);
+    setIsGeneratingIR(true);
+    setShowIRModal(true);
+    setResult(null);
+    
     try {
-      const response = await fetch('/api/validate', {
+      // First generate LLVM IR
+      const irResponse = await fetch('/api/generate-ir', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cppCode, rustCode }),
+      });
+      
+      if (!irResponse.ok) {
+        throw new Error('Failed to generate IR');
+      }
+      
+      const irData = await irResponse.json();
+      setCppIR(irData.cppIR);
+      setRustIR(irData.rustIR);
+
+      // Then validate the translation
+      setIsLoading(true);
+      const validationResponse = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cppCode,
-          rustCode,
+          cppIR: irData.cppIR,
+          rustIR: irData.rustIR,
           functionName: functionName || undefined,
         }),
       });
-      const data = await response.json();
-      setResult(data);
+
+      if (!validationResponse.ok) {
+        throw new Error('Validation failed');
+      }
+
+      const validationData: ValidationResult = await validationResponse.json();
+      setResult(validationData);
     } catch (error) {
-      console.error('Validation failed:', error);
+      console.error('Operation failed:', error);
+      setResult({
+        success: false,
+        verifier_output: error instanceof Error ? error.message : 'An unknown error occurred',
+        num_errors: 1
+      });
     } finally {
+      setIsGeneratingIR(false);
       setIsLoading(false);
     }
   };
@@ -84,20 +118,14 @@ export default function CodeEditorForm() {
         </label>
       </div>
 
-      {/* Result display section */}
-      {result && (
-        <div className="animate-fade-in mt-8">
-          <div className={`rounded-lg p-6 ${
-            result.success 
-              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' 
-              : 'bg-gradient-to-r from-red-50 to-rose-50 border border-red-200'
-          }`}>
-            <pre className="mt-4 p-4 bg-gray-800 text-gray-100 rounded-lg overflow-auto max-h-96 font-mono text-sm">
-              {result.verifier_output}
-            </pre>
-          </div>
-        </div>
-      )}
+      <LLVMIRModal
+        isOpen={showIRModal}
+        onClose={() => setShowIRModal(false)}
+        cppIR={cppIR}
+        rustIR={rustIR}
+        validationResult={result}
+        isValidating={isLoading}
+      />
 
       <button
         type="submit"
