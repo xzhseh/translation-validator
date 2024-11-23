@@ -3,6 +3,12 @@
 build:
 	@bash scripts/build.sh
 
+build_relay:
+	@bash scripts/build_relay.sh
+
+run_relay:
+	@./relay_server/build/relay_server
+
 run:
 	@./build/translation_validator $(filter-out $@ build_and_run, $(MAKECMDGOALS)) $(ARGS)
 
