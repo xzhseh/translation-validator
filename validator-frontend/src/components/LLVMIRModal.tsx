@@ -1,7 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import CodeEditor from './CodeEditor';
 import { ValidationResult } from '../types/validator';
 import ErrorBoundary from './ErrorBoundary';
+import CopyButton from './CopyButton';
+import Tooltip from './Tooltip';
 
 interface LLVMIRModalProps {
   isOpen: boolean;
@@ -12,9 +16,31 @@ interface LLVMIRModalProps {
   isValidating: boolean;
 }
 
-// Add this helper function to format the verifier output
+// Technical terms tooltips
+export const technicalTerms: Record<string, string> = {
+  'noundef': 'Indicates that the value cannot be undefined',
+  'i32': '32-bit integer type',
+  'ptr': 'Pointer type',
+  'alloc': 'Memory allocation instruction',
+  'align': 'Memory alignment specification',
+  'offset': 'Memory address offset',
+  'block_id': 'Identifier for a memory block',
+  'address': 'Memory location',
+  'const': 'Constant value',
+  'alive': 'Indicates if memory block is still in use',
+  'poison': 'Represents undefined behavior',
+  'UB': 'Undefined Behavior - unpredictable program behavior',
+  '_ZN': 'Rust name mangling prefix',
+  '_Z': 'C++ name mangling prefix',
+  'Function': 'Function declaration or definition',
+  'triggered UB': 'Function execution resulted in Undefined Behavior',
+  'panic': 'Rust panic handler function',
+  'core': 'Rust core library function',
+  'Jump to': 'Branch instruction to a labeled block',
+};
+
+// Update the formatVerifierOutput function
 const formatVerifierOutput = (output: string) => {
-  const lines = output.split('\n');
   const sections: { [key: string]: string[] } = {
     main: [],
     source: [],
@@ -22,14 +48,20 @@ const formatVerifierOutput = (output: string) => {
     memory: []
   };
   
+  const lines = output.split('\n');
   let currentSection = 'main';
   
   lines.forEach(line => {
-    if (line.startsWith('Source:')) {
+    // Update section detection logic
+    if (line.startsWith('ERROR:') || line.includes("Transformation doesn't verify")) {
+      currentSection = 'main';
+    } else if (line.startsWith('Source:')) {
       currentSection = 'source';
+      return; // Skip the section header line
     } else if (line.startsWith('Target:')) {
       currentSection = 'target';
-    } else if (line.includes('MEMORY STATE')) {
+      return; // Skip the section header line
+    } else if (line.includes('SOURCE MEMORY STATE')) {
       currentSection = 'memory';
     }
     sections[currentSection].push(line);
@@ -38,30 +70,326 @@ const formatVerifierOutput = (output: string) => {
   return sections;
 };
 
-// Add syntax highlighting helper
-const highlightLLVMIR = (text: string) => {
-  return text.split('\n').map((line, i) => {
-    // Basic LLVM IR syntax highlighting
-    const highlightedLine = line
-      // Keywords
-      .replace(/(^|\s)(define|declare|align|alloc|type|ret|br|switch|invoke|resume|unreachable|add|sub|mul|udiv|sdiv|urem|srem|and|or|xor|shl|lshr|ashr|icmp|fcmp|phi|select|call|va_arg|landingpad|catchswitch|catchret|cleanupret|fneg|freeze|load|store|cmpxchg|atomicrmw|getelementptr|trunc|zext|sext|fptrunc|fpext|fptoui|fptosi|uitofp|sitofp|ptrtoint|inttoptr|bitcast|addrspacecast|extractelement|insertelement|shufflevector|extractvalue|insertvalue)(\s|$)/g,
-        '$1<span class="text-purple-400">$2</span>$3')
-      // Types
-      .replace(/(^|\s)(i1|i8|i16|i32|i64|float|double|void|ptr)(\s|$)/g,
-        '$1<span class="text-yellow-300">$2</span>$3')
-      // Comments
-      .replace(/(;.*)$/g,
-        '<span class="text-gray-500">$1</span>')
-      // Labels
-      .replace(/(^[a-zA-Z_][a-zA-Z0-9_]*:)/g,
-        '<span class="text-blue-300">$1</span>')
-      // Function names
-      .replace(/@([a-zA-Z0-9_]+)/g,
-        '@<span class="text-green-400">$1</span>');
+// Add new TooltipPortal component
+const TooltipPortal = memo(({ content, children }: { content: string, children: React.ReactNode }) => {
+  const [portalElement, setPortalElement] = useState<HTMLElement | null>(null);
 
-    return `<span class="block">${highlightedLine}</span>`;
-  }).join('\n');
-};
+  useEffect(() => {
+    const element = document.createElement('div');
+    element.className = 'tooltip-portal';
+    document.body.appendChild(element);
+    setPortalElement(element);
+
+    return () => {
+      document.body.removeChild(element);
+    };
+  }, []);
+
+  if (!portalElement) return null;
+
+  return createPortal(
+    <Tooltip content={content}>{children}</Tooltip>,
+    portalElement
+  );
+});
+
+TooltipPortal.displayName = 'TooltipPortal';
+
+// Memoize the IR display section
+const IRDisplay = memo(({ cppIR, rustIR }: { cppIR: string; rustIR: string }) => (
+  <div className="grid grid-cols-2 gap-6 mb-6">
+    <div>
+      <h4 className="text-lg font-medium text-gray-900 mb-3">C++ LLVM IR</h4>
+      <ErrorBoundary>
+        <div className="h-[400px]">
+          <CodeEditor
+            language="llvm"
+            value={cppIR}
+            onChange={() => {}}
+            readOnly={true}
+            showCopyButton={true}
+          />
+        </div>
+      </ErrorBoundary>
+    </div>
+    <div>
+      <h4 className="text-lg font-medium text-gray-900 mb-3">Rust LLVM IR</h4>
+      <ErrorBoundary>
+        <div className="h-[400px]">
+          <CodeEditor
+            language="llvm"
+            value={rustIR}
+            onChange={() => {}}
+            readOnly={true}
+            showCopyButton={true}
+          />
+        </div>
+      </ErrorBoundary>
+    </div>
+  </div>
+));
+
+IRDisplay.displayName = 'IRDisplay';
+
+// Create a TooltipWrapper component to handle individual tooltips
+const TooltipWrapper = memo(({ term, tooltip, children }: { 
+  term: string; 
+  tooltip: string; 
+  children: React.ReactNode;
+}) => {
+  return (
+    <Tooltip content={tooltip}>
+      <span className="cursor-help border-b border-dotted border-gray-400">
+        {children}
+      </span>
+    </Tooltip>
+  );
+});
+
+TooltipWrapper.displayName = 'TooltipWrapper';
+
+// Create a Line component to handle individual line rendering
+const Line = memo(({ content }: { content: string }) => {
+  // Handle special cases first
+  if (content.includes('ERROR:')) {
+    return (
+      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+        <span className="text-rose-600 font-bold">ERROR:</span>
+        <span className="text-gray-800">{content.split('ERROR:')[1]}</span>
+      </div>
+    );
+  }
+
+  if (content.includes("Transformation doesn't verify")) {
+    return (
+      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+        <span className="text-rose-600 font-semibold">{content}</span>
+      </div>
+    );
+  }
+
+  if (content.match(/^Example:/)) {
+    return (
+      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+        <span className="text-gray-800 font-semibold">{content}</span>
+      </div>
+    );
+  }
+
+  if (content.match(/^(SOURCE MEMORY STATE|LOCAL BLOCKS|NON-LOCAL BLOCKS):$/)) {
+    return (
+      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+        <span className="text-blue-600 font-bold">{content}</span>
+      </div>
+    );
+  }
+
+  // Handle function-related lines specifically
+  if (content.includes('Function @') || content.match(/^@[_A-Za-z]/)) {
+    const functionMatch = content.match(/@([_A-Za-z0-9]+)/);
+    const functionName = functionMatch?.[1];
+    
+    if (functionName) {
+      let tooltip = '';
+
+      // Determine the type of function and create appropriate tooltip
+      if (functionName.startsWith('_ZN')) {
+        tooltip = 'Rust mangled function name';
+        if (functionName.includes('panic')) {
+          tooltip += ' (Panic handler)';
+        } else if (functionName.includes('core')) {
+          tooltip += ' (Core library function)';
+        }
+      } else if (functionName.startsWith('_Z')) {
+        tooltip = 'C++ mangled function name';
+      }
+
+      return (
+        <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+          <span>Function </span>
+          <Tooltip content={tooltip}>
+            <span className="text-emerald-600 font-semibold cursor-help border-b border-dotted border-emerald-300">
+              @{functionName}
+            </span>
+          </Tooltip>
+          {content.includes('triggered UB') && (
+            <>
+              <span> </span>
+              <Tooltip content="Function execution resulted in Undefined Behavior">
+                <span className="text-rose-600 cursor-help border-b border-dotted border-rose-300">
+                  triggered UB
+                </span>
+              </Tooltip>
+            </>
+          )}
+        </div>
+      );
+    }
+  }
+
+  // Handle jump/branch instructions
+  if (content.startsWith('>>')) {
+    const jumpMatch = content.match(/>>\s*Jump to\s*(%\w+)/);
+    if (jumpMatch) {
+      return (
+        <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+          <span className="text-blue-500">{'>>'}</span>
+          <Tooltip content="Branch instruction to a labeled block">
+            <span className="cursor-help border-b border-dotted border-gray-400"> Jump to </span>
+          </Tooltip>
+          <span className="text-purple-600">{jumpMatch[1]}</span>
+        </div>
+      );
+    }
+  }
+
+  // Update the parts splitting regex to include function names
+  const parts = content.split(/((?:\b(?:i32|ptr|noundef)\b)|(?:%#?\d+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
+
+  return (
+    <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+      {parts.map((part, index) => {
+        // Handle technical terms
+        if (technicalTerms[part] || part === 'i32' || part === 'ptr') {
+          const tooltip = technicalTerms[part] || 
+            (part === 'i32' ? '32-bit integer type' : 
+             part === 'ptr' ? 'Pointer type' : undefined);
+          
+          return (
+            <Tooltip key={index} content={tooltip || ''}>
+              <span className="cursor-help border-b border-dotted border-gray-400">
+                {part}
+              </span>
+            </Tooltip>
+          );
+        }
+
+        // Handle variables
+        if (part.startsWith('%')) {
+          return <span key={index} className="text-purple-600">{part}</span>;
+        }
+
+        // Handle block_id and offset
+        if (part.startsWith('block_id=') || part.startsWith('offset=')) {
+          const [label, value] = part.split('=');
+          return (
+            <span key={index}>
+              {label}=<span className="text-amber-600">{value}</span>
+            </span>
+          );
+        }
+
+        // Handle hex values
+        if (part.startsWith('#x')) {
+          const match = part.match(/#x([0-9a-fA-F]+)(?:\(([^)]+)\))?/);
+          if (match) {
+            return (
+              <span key={index}>
+                #x<span className="text-orange-600">{match[1]}</span>
+                {match[2] && (
+                  <span>
+                    (<span className="text-amber-600">{match[2]}</span>)
+                  </span>
+                )}
+              </span>
+            );
+          }
+        }
+
+        // Handle function names
+        if (part.startsWith('@')) {
+          const functionName = part.slice(1);
+          let tooltip = '';
+          
+          if (functionName.startsWith('_ZN')) {
+            tooltip = 'Rust mangled function name';
+          } else if (functionName.startsWith('_Z')) {
+            tooltip = 'C++ mangled function name';
+          }
+
+          if (tooltip) {
+            return (
+              <Tooltip key={index} content={tooltip}>
+                <span className="text-emerald-600 font-semibold cursor-help border-b border-dotted border-emerald-300">
+                  {part}
+                </span>
+              </Tooltip>
+            );
+          }
+        }
+
+        // Return plain text for other parts
+        return <span key={index}>{part}</span>;
+      })}
+    </div>
+  );
+});
+
+Line.displayName = 'Line';
+
+// Update ValidationOutput to use the Line component
+const ValidationOutput = memo(({ sections }: { sections: { [key: string]: string[] } }) => {
+  return (
+    <div className="space-y-6">
+      {Object.entries(sections).map(([sectionKey, lines]) => {
+        if (lines.length === 0) return null;
+  
+        const sectionInfo = {
+          main: {
+            title: 'Validation Output',
+            description: 'Main validation results and error messages',
+            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          },
+          source: {
+            title: 'Source Program',
+            description: 'The original C++ program in LLVM IR form',
+            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+          },
+          target: {
+            title: 'Target Program',
+            description: 'The translated Rust program in LLVM IR form',
+            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          },
+          memory: {
+            title: 'Memory State',
+            description: 'Analysis of program memory layout and usage',
+            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          }
+        }[sectionKey];
+  
+        if (!sectionInfo) return null;
+  
+        return (
+          <div key={sectionKey} className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+              <Tooltip content={sectionInfo.description}>
+                <div className="flex items-center space-x-2 cursor-help">
+                  {sectionInfo.icon}
+                  <span>{sectionInfo.title}</span>
+                </div>
+              </Tooltip>
+            </div>
+            <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+              {lines.map((line, idx) => (
+                <Line key={idx} content={line} />
+              ))}
+            </pre>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+ValidationOutput.displayName = 'ValidationOutput';
 
 export default function LLVMIRModal({
   isOpen,
@@ -71,243 +399,112 @@ export default function LLVMIRModal({
   validationResult,
   isValidating
 }: LLVMIRModalProps) {
-  const [activeTab, setActiveTab] = useState<'cpp' | 'rust'>('cpp');
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
-  
-  // Monitor scroll position
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
+
+  // Save scroll position before any state updates
   useEffect(() => {
-    const resultsDiv = resultsRef.current;
-    if (!resultsDiv) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
 
     const handleScroll = () => {
-      setShowScrollTop(resultsDiv.scrollTop > 200);
+      setScrollPosition(container.scrollTop);
     };
 
-    resultsDiv.addEventListener('scroll', handleScroll);
-    return () => resultsDiv.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToTop = () => {
-    resultsRef.current?.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
-
-  const handleCopyAll = async () => {
-    if (!validationResult) return;
-    
-    try {
-      await navigator.clipboard.writeText(validationResult.verifier_output);
-      setCopiedSection('all');
-      setTimeout(() => setCopiedSection(null), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  };
+  // Restore scroll position after any state updates
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTop = scrollPosition;
+  }, [scrollPosition, validationResult]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity duration-300 bg-gray-500 bg-opacity-75" onClick={onClose} />
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div 
+          className="fixed inset-0 transition-opacity duration-300 bg-gray-500 bg-opacity-75" 
+          onClick={onClose} 
+        />
 
-        <div className="inline-block w-full max-w-4xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl animate-modal-slide-in">
+        <div className="relative w-full max-w-7xl bg-white rounded-2xl shadow-xl overflow-hidden animate-modal-slide-in">
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-2xl font-semibold text-gray-900">LLVM IR Generation</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
-              <span className="sr-only">Close</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Tabs */}
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('cpp')}
-                className={`${
-                  activeTab === 'cpp'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          <div className="sticky top-0 z-20 bg-white border-b">
+            <div className="flex justify-between items-center p-6">
+              <h3 className="text-2xl font-semibold text-gray-900 animate-fade-in">LLVM IR Generation</h3>
+              <button 
+                onClick={onClose} 
+                className="text-gray-400 hover:text-gray-500 transition-colors duration-200"
               >
-                C++ LLVM IR
-              </button>
-              <button
-                onClick={() => setActiveTab('rust')}
-                className={`${
-                  activeTab === 'rust'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Rust LLVM IR
-              </button>
-            </nav>
-          </div>
-
-          {/* IR Display with fade transition */}
-          <div className="transition-opacity duration-300 ease-in-out">
-            <ErrorBoundary>
-              <div className="h-[400px] mb-6">
-                <CodeEditor
-                  language="llvm"
-                  value={activeTab === 'cpp' ? cppIR : rustIR}
-                  onChange={() => {}}
-                  readOnly={true}
-                  showCopyButton={true}
-                />
-              </div>
-            </ErrorBoundary>
-          </div>
-
-          {/* Validation Result with scroll container */}
-          {isValidating ? (
-            <div className="flex items-center justify-center py-4 animate-fade-in">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-              <span className="ml-3 text-gray-600">Validating translation...</span>
-            </div>
-          ) : validationResult && (
-            <div 
-              ref={resultsRef}
-              className={`p-4 rounded-lg max-h-[500px] overflow-y-auto relative animate-fade-in ${
-                validationResult.success 
-                  ? 'bg-green-50 border border-green-200' 
-                  : 'bg-red-50 border border-red-200'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
-                  {validationResult.success ? (
-                    <div className="flex items-center text-green-800">
-                      <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
-                      </svg>
-                      <span className="text-lg font-medium">Translation Verified</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center text-red-800">
-                      <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" />
-                      </svg>
-                      <span className="text-lg font-medium">Verification Failed</span>
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleCopyAll}
-                  className="px-3 py-1 text-sm text-gray-600 bg-white hover:bg-gray-50 border rounded-md shadow-sm transition-all duration-200 flex items-center space-x-1"
-                >
-                  {copiedSection === 'all' ? (
-                    <>
-                      <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      <span>Copy Output</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="space-y-4 max-h-[400px] overflow-auto">
-                {(() => {
-                  const sections = formatVerifierOutput(validationResult.verifier_output);
-                  return (
-                    <div className="space-y-4">
-                      {sections.main.length > 0 && (
-                        <div className="bg-gray-800 rounded-lg p-4">
-                          <div className="text-white font-medium mb-2">Main Output</div>
-                          <pre 
-                            className="text-white text-sm font-mono whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ 
-                              __html: highlightLLVMIR(sections.main.join('\n')) 
-                            }}
-                          />
-                        </div>
-                      )}
-                      
-                      {sections.source.length > 0 && (
-                        <div className="bg-gray-800 rounded-lg p-4">
-                          <div className="text-blue-300 font-medium mb-2">Source Program</div>
-                          <pre 
-                            className="text-gray-100 text-sm font-mono whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ 
-                              __html: highlightLLVMIR(sections.source.join('\n')) 
-                            }}
-                          />
-                        </div>
-                      )}
-                      
-                      {sections.target.length > 0 && (
-                        <div className="bg-gray-800 rounded-lg p-4">
-                          <div className="text-purple-300 font-medium mb-2">Target Program</div>
-                          <pre 
-                            className="text-gray-100 text-sm font-mono whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ 
-                              __html: highlightLLVMIR(sections.target.join('\n')) 
-                            }}
-                          />
-                        </div>
-                      )}
-                      
-                      {sections.memory.length > 0 && (
-                        <div className="bg-gray-800 rounded-lg p-4">
-                          <div className="text-yellow-300 font-medium mb-2">Memory State</div>
-                          <pre 
-                            className="text-gray-100 text-sm font-mono whitespace-pre-wrap overflow-x-auto"
-                            dangerouslySetInnerHTML={{ 
-                              __html: highlightLLVMIR(sections.memory.join('\n')) 
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Scroll to top button */}
-              <button
-                onClick={scrollToTop}
-                className={`fixed bottom-4 right-4 p-2 bg-gray-800 text-white rounded-full shadow-lg transition-all duration-300 ${
-                  showScrollTop 
-                    ? 'opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-10 pointer-events-none'
-                }`}
-                aria-label="Scroll to top"
-              >
-                <svg 
-                  className="w-5 h-5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M5 10l7-7m0 0l7 7m-7-7v18"
-                  />
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-          )}
+          </div>
+
+          {/* Scrollable Content with ref */}
+          <div 
+            ref={scrollContainerRef}
+            className="p-6 pb-20 max-h-[calc(100vh-200px)] overflow-y-auto smooth-scroll"
+          >
+            <IRDisplay cppIR={cppIR} rustIR={rustIR} />
+
+            {isValidating ? (
+              <div className="flex items-center justify-center py-4 animate-fade-in">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+                <span className="ml-3 text-gray-600">Validating translation...</span>
+              </div>
+            ) : validationResult && (
+              <div ref={resultsRef} className="animate-fade-in">
+                <div className={`p-6 rounded-xl backdrop-blur-sm ${
+                  validationResult.success 
+                    ? 'bg-green-50/80 border border-green-200' 
+                    : 'bg-red-50/80 border border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                      {validationResult.success ? (
+                        <div className="flex items-center text-green-800">
+                          <svg className="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+                          </svg>
+                          <span className="text-xl font-medium">Translation Verified</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-red-800">
+                          <svg className="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" />
+                          </svg>
+                          <span className="text-xl font-medium">Verification Failed</span>
+                        </div>
+                      )}
+                    </div>
+                    <CopyButton 
+                      text={validationResult.verifier_output} 
+                      label="Copy Output" 
+                    />
+                  </div>
+
+                  <ValidationOutput 
+                    sections={formatVerifierOutput(validationResult.verifier_output)} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Gradient fade at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white pointer-events-none" />
         </div>
       </div>
     </div>
   );
-} 
+}

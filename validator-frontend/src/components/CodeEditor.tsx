@@ -1,5 +1,10 @@
-import Editor from '@monaco-editor/react';
-import { useState } from 'react';
+import Editor, { Monaco } from '@monaco-editor/react';
+import { memo, useCallback, useEffect } from 'react';
+import CopyButton from './CopyButton';
+import { editor } from 'monaco-editor';
+
+// Import the technical terms from LLVMIRModal
+import { technicalTerms } from './LLVMIRModal';
 
 interface CodeEditorProps {
   language: 'rust' | 'cpp' | 'llvm';
@@ -9,50 +14,123 @@ interface CodeEditorProps {
   showCopyButton?: boolean;
 }
 
-export default function CodeEditor({ 
+const CodeEditor = memo(({ 
   language, 
   value, 
   onChange, 
   readOnly,
   showCopyButton = false 
-}: CodeEditorProps) {
-  const [copied, setCopied] = useState(false);
+}: CodeEditorProps) => {
+  const handleChange = useCallback((value: string | undefined) => {
+    onChange(value || '');
+  }, [onChange]);
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // Setup Monaco editor with LLVM IR syntax highlighting and tooltips
+  const handleEditorDidMount = useCallback((editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+    if (language === 'llvm') {
+      // Only register the language once
+      if (!monaco.languages.getLanguages().some(lang => lang.id === 'llvm')) {
+        // Register a new language
+        monaco.languages.register({ id: 'llvm' });
+
+        // Define syntax highlighting rules
+        monaco.languages.setMonarchTokensProvider('llvm', {
+          tokenizer: {
+            root: [
+              // Comments
+              [/;.*$/, 'comment'],
+              
+              // Keywords
+              [/\b(define|declare|align|alloc|type|ret|br|switch|invoke|resume|unreachable|add|sub|mul|div|rem|and|or|xor|shl|lshr|ashr|icmp|fcmp|phi|select|call|load|store)\b/, 'keyword'],
+              
+              // Types
+              [/\b(i1|i8|i16|i32|i64|float|double|void|ptr)\b/, 'type'],
+              
+              // Variables
+              [/%[a-zA-Z0-9_#]+/, 'variable'],
+              
+              // Function names
+              [/@[a-zA-Z0-9_]+/, 'function'],
+              
+              // Numbers and hex values
+              [/#x[0-9a-fA-F]+/, 'number.hex'],
+              [/\b\d+\b/, 'number'],
+              
+              // Technical terms
+              [/\b(noundef|poison|UB)\b/, 'keyword.control'],
+            ]
+          }
+        });
+
+        // Add hover provider for tooltips
+        monaco.languages.registerHoverProvider('llvm', {
+          provideHover: (model, position) => {
+            const word = model.getWordAtPosition(position);
+            if (!word) return null;
+
+            const term = word.word;
+            const tooltip = technicalTerms[term];
+            
+            if (tooltip) {
+              return {
+                contents: [
+                  { value: `**${term}**` },
+                  { value: tooltip }
+                ]
+              };
+            }
+
+            // Add special cases for common patterns
+            if (term.startsWith('_ZN')) {
+              return {
+                contents: [{ value: 'Rust mangled function name' }]
+              };
+            }
+            if (term.startsWith('_Z')) {
+              return {
+                contents: [{ value: 'C++ mangled function name' }]
+              };
+            }
+
+            return null;
+          }
+        });
+
+        // Add custom theme rules
+        monaco.editor.defineTheme('llvm-theme', {
+          base: 'vs',
+          inherit: true,
+          rules: [
+            { token: 'keyword', foreground: '5B21B6' },
+            { token: 'type', foreground: 'D97706' },
+            { token: 'variable', foreground: '7C3AED' },
+            { token: 'function', foreground: '059669' },
+            { token: 'number.hex', foreground: 'EA580C' },
+            { token: 'number', foreground: 'D97706' },
+            { token: 'keyword.control', foreground: '2563EB' },
+            { token: 'comment', foreground: '6B7280' },
+          ],
+          colors: {}
+        });
+      }
+
+      // Set the theme
+      monaco.editor.setTheme('llvm-theme');
+    }
+  }, [language]);
 
   return (
     <div className="relative h-[400px] border rounded-lg overflow-hidden">
       {showCopyButton && (
-        <button
-          onClick={handleCopy}
-          className="absolute top-2 right-2 z-10 px-3 py-1 text-sm text-gray-600 bg-white/90 hover:bg-white border rounded-md shadow-sm transition-all duration-200 flex items-center space-x-1"
-        >
-          {copied ? (
-            <>
-              <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Copied!</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span>Copy</span>
-            </>
-          )}
-        </button>
+        <div className="absolute top-2 right-2 z-10">
+          <CopyButton text={value} className="!px-3 !py-1 text-sm bg-white/90" />
+        </div>
       )}
       <Editor
         height="100%"
         defaultLanguage={language}
         value={value}
-        onChange={(value) => onChange(value || '')}
+        onChange={handleChange}
         theme="light"
         options={{
           minimap: { enabled: false },
@@ -61,9 +139,15 @@ export default function CodeEditor({
           scrollBeyondLastLine: false,
           readOnly: readOnly,
           renderWhitespace: 'selection',
-          wordWrap: 'on'
+          wordWrap: 'on',
+          suggest: { showWords: false }
         }}
+        onMount={handleEditorDidMount}
       />
     </div>
   );
-}
+});
+
+CodeEditor.displayName = 'CodeEditor';
+
+export default CodeEditor;
