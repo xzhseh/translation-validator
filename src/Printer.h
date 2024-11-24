@@ -3,10 +3,9 @@
 
 #include <iostream>
 
-#include "llvm_util/compare.h"
-
 #define BOLD_YELLOW "\033[1;33m"
 #define BOLD_GREEN "\033[1;32m"
+#define P_GREEN "\033[0;32m"
 #define BOLD_RED "\033[1;31m"
 #define BOLD_BLUE "\033[1;34m"
 #define RESET_COLOR "\033[0m"
@@ -25,7 +24,9 @@ public:
         module_name_(module_name) {}
 
     /// print verification summary
-    void print_summary(const llvm_util::Verifier &verifier,
+    void print_summary(const size_t num_correct,
+                       const size_t num_unsound,
+                       const size_t num_failed,
                        const ComparisonResult &result,
                        const std::string &verifier_output = "") const {
         if (!verifier_output.empty()) {
@@ -42,9 +43,9 @@ public:
         }
         os_ << BOLD_BLUE;
         os_ << "SUMMARY:\n"
-           << "  " << BOLD_GREEN << verifier.num_correct << " correct translations\n"
-           << "  " << BOLD_RED << verifier.num_unsound << " incorrect translations\n"
-           << "  " << BOLD_YELLOW << verifier.num_failed << " failed to prove\n";
+           << "  " << BOLD_GREEN << num_correct << " correct translations\n"
+           << "  " << BOLD_RED << num_unsound << " incorrect translations\n"
+           << "  " << BOLD_YELLOW << num_failed << " failed to prove\n";
         os_ << RESET_COLOR;
     }
 
@@ -62,9 +63,18 @@ public:
            << "\n";
     }
 
+    void print_info(const std::string &message) const {
+        os_ << P_GREEN << "[" << module_name_ << "] " << message << RESET_COLOR << "\n";
+    }
+
+    void log(const std::string &message) const {
+        os_ << P_GREEN << "[" << module_name_ << "::LOG] " << message
+           << RESET_COLOR << "\n";
+    }
+
 private:
     std::ostream &os_;
     std::string module_name_;
 };
-
 #endif  // PRINTER_H
+

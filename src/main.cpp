@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     llvm::InitLLVM init_llvm { argc, argv };
     llvm::EnableDebugBuffering = true;
     llvm::LLVMContext context {};
-    Printer printer { std::cout, "main" };
+    Printer printer { std::cout, "standalone" };
 
     // preprocess the command line arguments
     Preprocessor preprocessor { argc, argv };
@@ -132,10 +132,13 @@ int main(int argc, char *argv[]) {
                                        opt_cpp_pattern, reversed_verifier };
         auto reversed_results = reversed_comparer.compare();
 
-        printer.print_summary(reversed_verifier, reversed_results);
+        printer.print_summary(reversed_verifier.num_correct,
+                              reversed_verifier.num_unsound,
+                              reversed_verifier.num_failed, reversed_results);
         return reversed_verifier.num_errors > 0;
     } else {
-        printer.print_summary(verifier, results, verifier_output);
+        printer.print_summary(verifier.num_correct, verifier.num_unsound,
+                              verifier.num_failed, results, verifier_output);
         return verifier.num_errors > 0;
     }
 }

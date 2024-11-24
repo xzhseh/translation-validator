@@ -21,4 +21,4 @@ if ! make; then
     exit 1
 fi
 
-echo "[build.sh] build completed successfully"
+echo "[build.sh] build completed successfully for both standalone and validator_server"

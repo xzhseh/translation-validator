@@ -16,7 +16,7 @@ find_package(OpenSSL REQUIRED)
 find_package(cpprestsdk REQUIRED)
 
 # add relay server executable
-add_executable(relay_server relay_server.cpp)
+add_executable(relay_server RelayServer.cpp)
 
 # link only what server needs
 target_link_libraries(relay_server PRIVATE
