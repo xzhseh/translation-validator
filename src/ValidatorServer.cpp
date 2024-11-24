@@ -110,24 +110,26 @@ void read_until_length(int client_socket, char *buffer, size_t length) {
 /// the protocol between messages sent from the relay server is,
 /// <length><blankspace><message>
 /// where <length> is the exact length of the <message>.
-bool read_relay_message(int client_socket, char *buffer) {
+bool read_relay_message(int client_socket, std::string &buffer) {
     // first read the length of the message
     size_t n { 0 };
-    char length_buffer[16] { 0 };
+    char length_buffer[9] { 0 };
 
     while ((read(client_socket, length_buffer + n, 1)) > 0) {
         if (length_buffer[n] == ' ') {
             // calculate the length of the message
             size_t length = std::atoi(length_buffer);
+            // make sure the buffer has enough space to hold the message
+            buffer.resize(length);
             // read the rest of the message until the length is reached
-            read_until_length(client_socket, buffer, length);
+            read_until_length(client_socket, buffer.data(), length);
             break;
         } else if (!isdigit(length_buffer[n])) {
             // malformed message
             return false;
         } else {
             n += 1;
-            if (n > 16) {
+            if (n > 8) {
                 // length buffer overflow
                 return false;
             }
@@ -138,15 +140,14 @@ bool read_relay_message(int client_socket, char *buffer) {
 }
 
 void ValidatorServer::process_client(int client_socket) {
-    char buffer[4096] { 0 };
+    std::string buffer {};
     if (!read_relay_message(client_socket, buffer)) {
-        printer_.print_error("malformed message from client");
+        printer_.print_error("failed to read message from client");
         close(client_socket);
         return;
     }
-    std::string command { buffer };
-    printer_.log("received command: " + command);
 
+    std::string command { std::move(buffer) };
     std::string result {};
     if (command.starts_with("VALIDATE")) {
         // <VALIDATE>__CPPIR__<cpp_ir>__RUSTIR__<rust_ir>__FUNCTION__<function_name>

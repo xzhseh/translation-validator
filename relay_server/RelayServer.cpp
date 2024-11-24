@@ -55,9 +55,11 @@ public:
 
                 // format command and send to validator
                 std::string command {
-                    std::string("GENERATE") + "__CPPCODE__" + cpp_code + "__RUSTCODE__" + rust_code
+                    std::string("GENERATE") +
+                    "__CPPCODE__" + std::move(cpp_code) +
+                    "__RUSTCODE__" + std::move(rust_code)
                 };
-                std::string result = send_to_validator(command);
+                std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
                     request.reply(status_codes::InternalError,
                                  utility::conversions::to_string_t("failed to send command for generating IR"));
@@ -103,9 +105,12 @@ public:
 
                 // format command and send to validator
                 std::string command {
-                    std::string("VALIDATE") + "__CPPIR__" + cpp_ir + "__RUSTIR__" + rust_ir + "__FUNCTION__" + function_name
+                    std::string("VALIDATE") +
+                    "__CPPIR__" + std::move(cpp_ir) +
+                    "__RUSTIR__" + std::move(rust_ir) +
+                    "__FUNCTION__" + std::move(function_name)
                 };
-                std::string result = send_to_validator(command);
+                std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
                     request.reply(status_codes::InternalError,
                                  utility::conversions::to_string_t("failed to send command for validating IR"));
@@ -164,24 +169,25 @@ private:
     /// the protocol between messages sent from the relay server is,
     /// <length><blankspace><message>
     /// where <length> is the exact length of the <message>.
-    bool read_validator_message(int client_socket, char *buffer) {
+    bool read_validator_message(int client_socket, std::string &buffer) {
         // first read the length of the message
         size_t n { 0 };
-        char length_buffer[16] { 0 };
+        char length_buffer[9] { 0 };
 
         while ((read(client_socket, length_buffer + n, 1)) > 0) {
             if (length_buffer[n] == ' ') {
                 // calculate the length of the message
                 size_t length = std::atoi(length_buffer);
+                buffer.resize(length);
                 // read the rest of the message until the length is reached
-                read_until_length(client_socket, buffer, length);
+                read_until_length(client_socket, buffer.data(), length);
                 break;
             } else if (!isdigit(length_buffer[n])) {
                 // malformed message
                 return false;
             } else {
                 n += 1;
-                if (n > 16) {
+                if (n > 8) {
                     // length buffer overflow
                     return false;
                 }
@@ -191,10 +197,9 @@ private:
         return true;
     }
 
-    /// send a command to the alive2 verifier server through a simple TCP connection.
-    /// note that this function will create a temporary TCP socket and then close it.
-    /// this function will block until the command is sent and the response is received.
-    auto send_to_validator(const std::string &command) -> std::string {
+    /// create a TCP connection with the validator server.
+    /// this function will block until the connection is established.
+    int make_connection_with_validator(bool &error) {
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) {
             throw std::runtime_error("failed to create socket");
@@ -209,18 +214,32 @@ private:
         if (inet_pton(AF_INET, validator_host.c_str(), &serv_addr.sin_addr) <= 0) {
             close(sock);
             printer_.print_error("invalid address");
-            return { "error" };
+            error = true;
+            return -1;
         }
 
         if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
             close(sock);
             printer_.print_error("connection failed");
-            return { "error" };
+            error = true;
+            return -1;
         }
         printer_.log("connected to validator server");
+        return sock;
+    }
+
+    /// send a command to the alive2 verifier server through a simple TCP connection.
+    /// note that this function will create a temporary TCP socket and then close it.
+    /// this function will block until the command is sent and the response is received.
+    auto send_to_validator(std::string command) -> std::string {
+        bool error { false };
+        int sock = make_connection_with_validator(error);
+        if (error) {
+            return { "error" };
+        }
 
         // follows the format: <length><blankspace><command>
-        std::string relay_message { std::to_string(command.length()) + " " + command };
+        std::string relay_message { std::to_string(command.length()) + " " + std::move(command) };
         ssize_t sent_bytes = send(sock, relay_message.c_str(), relay_message.length(), 0);
         if (sent_bytes < 0 || static_cast<size_t>(sent_bytes) != relay_message.length()) {
             close(sock);
@@ -228,7 +247,7 @@ private:
             return { "error" };
         }
 
-        char buffer[4096] { 0 };
+        std::string buffer {};
         if (!read_validator_message(sock, buffer)) {
             close(sock);
             printer_.print_error("failed to read validator message");
@@ -236,7 +255,7 @@ private:
         }
 
         close(sock);
-        return std::string(buffer);
+        return std::move(buffer);
     }
 
     void check_request_body(const json::value &body, std::vector<std::string> required_fields) {
