@@ -61,5 +61,15 @@ pub fn create_color(x: i32) -> Color {
         _ => 3
     }
 }`
+  },
+  add_u32: {
+    cpp: `/// note that in cpp, the addition of two unsigned integers (or unsigned integer arithmetic)
+/// is always well-defined with potential wrapping behavior.
+unsigned int add(unsigned int a, unsigned int b) {
+    return a + b;
+}`,
+    rust: `pub fn add(a: u32, b: u32) -> u32 {
+    a + b
+}`
   }
 }; 

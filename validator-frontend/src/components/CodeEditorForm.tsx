@@ -22,7 +22,6 @@ export default function CodeEditorForm() {
     if (!cppCode || !rustCode) return;
 
     setIsGeneratingIR(true);
-    setShowIRModal(true);
     setResult(null);
     
     try {
@@ -38,8 +37,14 @@ export default function CodeEditorForm() {
       }
       
       const irData = await irResponse.json();
+      if (irData.error) {
+        throw new Error(irData.error);
+      }
+
+      // Store the generated IR
       setCppIR(irData.cppIR);
       setRustIR(irData.rustIR);
+      setShowIRModal(true);
 
       // Then validate the translation
       setIsLoading(true);
@@ -102,20 +107,22 @@ export default function CodeEditorForm() {
       </div>
 
       <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </div>
         <input
           type="text"
           id="functionName"
           value={functionName}
           onChange={(e) => setFunctionName(e.target.value)}
-          className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 peer"
-          placeholder=" "
+          className="block w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg 
+                   focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
+                   shadow-sm transition-colors duration-200
+                   hover:border-gray-300"
+          placeholder="Function Name (Optional)"
         />
-        <label
-          htmlFor="functionName"
-          className="absolute text-gray-500 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-white px-2 peer-focus:px-2 peer-focus:text-blue-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 left-1"
-        >
-          Function Name (Optional)
-        </label>
       </div>
 
       <LLVMIRModal
@@ -130,16 +137,20 @@ export default function CodeEditorForm() {
       <button
         type="submit"
         disabled={!cppCode || !rustCode || isLoading}
-        className="w-full relative inline-flex items-center justify-center px-8 py-3 overflow-hidden text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg group focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-150"
+        className="w-full relative inline-flex items-center justify-center px-8 py-3 
+                 overflow-hidden text-white bg-gradient-to-r from-blue-600 to-purple-600 
+                 rounded-lg group focus:outline-none focus:ring-2 focus:ring-offset-2 
+                 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed 
+                 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-150"
       >
         {isLoading ? (
-          <span className="flex items-center">
+          <div className="flex items-center">
             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Validating...
-          </span>
+            <span>Validating...</span>
+          </div>
         ) : (
           <span>Validate Translation</span>
         )}

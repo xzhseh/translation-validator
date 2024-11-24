@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,11 +7,17 @@
 :root {
   --background: #ffffff;
   --foreground: #000000;
+  --font-fira-code: 'Fira Code', monospace;
+  --font-fira-sans: 'Fira Sans', sans-serif;
 }
 
 @layer base {
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-white text-black antialiased font-fira-sans;
+  }
+
+  pre, code, .monaco-editor {
+    font-family: var(--font-fira-code) !important;
   }
 }
 

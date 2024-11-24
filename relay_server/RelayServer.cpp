@@ -67,16 +67,15 @@ public:
                 }
 
                 // parse result into cpp and rust IR by reading the generated IR files
-                std::string cpp_ir_location { "/tmp/validator_server_temp_cpp.ll" };
-                std::string rust_ir_location { "/tmp/validator_server_temp_rs.ll" };
-                std::stringstream cpp_ir, rust_ir;
-                cpp_ir << std::ifstream(cpp_ir_location).rdbuf();
-                rust_ir << std::ifstream(rust_ir_location).rdbuf();
+                std::string separator { "__GENERATED_IR_SEPARATOR__" };
+                auto irs = result.find(separator);
+                auto cpp_ir = result.substr(0, irs);
+                auto rust_ir = result.substr(irs + separator.length());
 
                 // create response
                 json::value response {};
-                response["cppIR"] = json::value::string(cpp_ir.str());
-                response["rustIR"] = json::value::string(rust_ir.str());
+                response["cppIR"] = json::value::string(cpp_ir);
+                response["rustIR"] = json::value::string(rust_ir);
 
                 return response;
             } catch (const std::exception &e) {
@@ -118,8 +117,8 @@ public:
                 }
 
                 // parse validation result
-                bool success = result.find("Validation successful") != std::string::npos;
-                int num_errors = std::count(result.begin(), result.end(), '#');
+                bool success = result.find("Transformation seems to be correct!") != std::string::npos;
+                int num_errors = success ? 0 : 1;
 
                 // create response
                 json::value response {};
@@ -255,7 +254,7 @@ private:
         }
 
         close(sock);
-        return std::move(buffer);
+        return buffer;
     }
 
     void check_request_body(const json::value &body, std::vector<std::string> required_fields) {

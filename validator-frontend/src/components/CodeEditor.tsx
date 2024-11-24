@@ -140,7 +140,9 @@ const CodeEditor = memo(({
           readOnly: readOnly,
           renderWhitespace: 'selection',
           wordWrap: 'on',
-          suggest: { showWords: false }
+          suggest: { showWords: false },
+          fontFamily: 'Fira Code',
+          fontLigatures: true,
         }}
         onMount={handleEditorDidMount}
       />

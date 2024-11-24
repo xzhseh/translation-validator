@@ -39,31 +39,70 @@ export const technicalTerms: Record<string, string> = {
   'Jump to': 'Branch instruction to a labeled block',
 };
 
+// Create a proper interface for sections
+interface ValidationSections {
+  main: string[];
+  source: string[];
+  target: string[];
+  memory: string[];
+  alive2_source: string[];
+  alive2_target: string[];
+  example: string[];
+  success: boolean;
+}
+
 // Update the formatVerifierOutput function
-const formatVerifierOutput = (output: string) => {
-  const sections: { [key: string]: string[] } = {
+const formatVerifierOutput = (output: string): ValidationSections => {
+  const isSuccess = output.includes('Transformation seems to be correct!');
+  
+  const sections: ValidationSections = {
     main: [],
     source: [],
     target: [],
-    memory: []
+    memory: [],
+    alive2_source: [],
+    alive2_target: [],
+    example: [],
+    success: isSuccess
   };
   
   const lines = output.split('\n');
-  let currentSection = 'main';
+  let currentSection: keyof Omit<ValidationSections, 'success'> = 'main';
+  let inAlive2Section = false;
   
   lines.forEach(line => {
-    // Update section detection logic
-    if (line.startsWith('ERROR:') || line.includes("Transformation doesn't verify")) {
-      currentSection = 'main';
-    } else if (line.startsWith('Source:')) {
-      currentSection = 'source';
-      return; // Skip the section header line
-    } else if (line.startsWith('Target:')) {
-      currentSection = 'target';
-      return; // Skip the section header line
-    } else if (line.includes('SOURCE MEMORY STATE')) {
-      currentSection = 'memory';
+    // Check for Alive2 IR sections
+    if (line.startsWith('----------------------------------------')) {
+      inAlive2Section = true;
+      currentSection = 'alive2_source';
+      return;
     }
+    if (line.startsWith('=>')) {
+      currentSection = 'alive2_target';
+      return;
+    }
+    if (line.startsWith('Transformation')) {
+      inAlive2Section = false;
+      currentSection = 'main';
+      return;
+    }
+    if (line.startsWith('Example:')) {
+      currentSection = 'example';
+      return;
+    }
+ 
+    // Check for counterexample sections
+    if (!inAlive2Section) {
+      if (line.startsWith('Source:')) {
+        currentSection = 'source';
+      } else if (line.startsWith('Target:')) {
+        currentSection = 'target';
+      } else if (line.includes('SOURCE MEMORY STATE')) {
+        currentSection = 'memory';
+      }
+    }
+    
+    // Add line to appropriate section
     sections[currentSection].push(line);
   });
   
@@ -96,33 +135,50 @@ const TooltipPortal = memo(({ content, children }: { content: string, children: 
 TooltipPortal.displayName = 'TooltipPortal';
 
 // Memoize the IR display section
-const IRDisplay = memo(({ cppIR, rustIR }: { cppIR: string; rustIR: string }) => (
+interface IRDisplayProps {
+  cppIR: string;
+  rustIR: string;
+}
+
+const IRDisplay = memo(({ cppIR, rustIR }: IRDisplayProps) => (
   <div className="grid grid-cols-2 gap-6 mb-6">
     <div>
       <h4 className="text-lg font-medium text-gray-900 mb-3">C++ LLVM IR</h4>
       <ErrorBoundary>
-        <div className="h-[400px]">
-          <CodeEditor
-            language="llvm"
-            value={cppIR}
-            onChange={() => {}}
-            readOnly={true}
-            showCopyButton={true}
-          />
+        <div className="relative h-[400px]">
+          {cppIR ? (
+            <CodeEditor
+              language="llvm"
+              value={cppIR}
+              onChange={() => {}}
+              readOnly={true}
+              showCopyButton={true}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+              <span className="text-gray-500">Generating IR...</span>
+            </div>
+          )}
         </div>
       </ErrorBoundary>
     </div>
     <div>
       <h4 className="text-lg font-medium text-gray-900 mb-3">Rust LLVM IR</h4>
       <ErrorBoundary>
-        <div className="h-[400px]">
-          <CodeEditor
-            language="llvm"
-            value={rustIR}
-            onChange={() => {}}
-            readOnly={true}
-            showCopyButton={true}
-          />
+        <div className="relative h-[400px]">
+          {rustIR ? (
+            <CodeEditor
+              language="llvm"
+              value={rustIR}
+              onChange={() => {}}
+              readOnly={true}
+              showCopyButton={true}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+              <span className="text-gray-500">Generating IR...</span>
+            </div>
+          )}
         </div>
       </ErrorBoundary>
     </div>
@@ -149,7 +205,11 @@ const TooltipWrapper = memo(({ term, tooltip, children }: {
 TooltipWrapper.displayName = 'TooltipWrapper';
 
 // Create a Line component to handle individual line rendering
-const Line = memo(({ content }: { content: string }) => {
+interface LineProps {
+  content: string;
+}
+
+const Line = memo(({ content }: LineProps) => {
   // Handle special cases first
   if (content.includes('ERROR:')) {
     return (
@@ -327,64 +387,115 @@ const Line = memo(({ content }: { content: string }) => {
 
 Line.displayName = 'Line';
 
-// Update ValidationOutput to use the Line component
-const ValidationOutput = memo(({ sections }: { sections: { [key: string]: string[] } }) => {
+// Update ValidationOutput component
+const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) => {
   return (
     <div className="space-y-6">
-      {Object.entries(sections).map(([sectionKey, lines]) => {
-        if (lines.length === 0) return null;
-  
-        const sectionInfo = {
-          main: {
-            title: 'Validation Output',
-            description: 'Main validation results and error messages',
-            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          },
-          source: {
-            title: 'Source Program',
-            description: 'The original C++ program in LLVM IR form',
-            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-          },
-          target: {
-            title: 'Target Program',
-            description: 'The translated Rust program in LLVM IR form',
-            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          },
-          memory: {
-            title: 'Memory State',
-            description: 'Analysis of program memory layout and usage',
-            icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
-        }[sectionKey];
-  
-        if (!sectionInfo) return null;
-  
-        return (
-          <div key={sectionKey} className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
-            <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
-              <Tooltip content={sectionInfo.description}>
-                <div className="flex items-center space-x-2 cursor-help">
-                  {sectionInfo.icon}
-                  <span>{sectionInfo.title}</span>
-                </div>
-              </Tooltip>
-            </div>
-            <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
-              {lines.map((line, idx) => (
-                <Line key={idx} content={line} />
-              ))}
-            </pre>
+      {/* Alive2 IR Sections */}
+      {sections.alive2_source.length > 0 && (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+          <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+            <Tooltip content="The original C++ program converted to Alive2 IR form">
+              <div className="flex items-center space-x-2 cursor-help">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                <span>Source Program (Alive2 IR)</span>
+              </div>
+            </Tooltip>
           </div>
-        );
-      })}
+          <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+            {sections.alive2_source.map((line, idx) => (
+              <Line key={idx} content={line} />
+            ))}
+          </pre>
+        </div>
+      )}
+
+      {sections.alive2_target.length > 0 && (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+          <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+            <Tooltip content="The translated Rust program converted to Alive2 IR form">
+              <div className="flex items-center space-x-2 cursor-help">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span>Target Program (Alive2 IR)</span>
+              </div>
+            </Tooltip>
+          </div>
+          <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+            {sections.alive2_target.map((line, idx) => (
+              <Line key={idx} content={line} />
+            ))}
+          </pre>
+        </div>
+      )}
+
+      {/* Counterexample Sections (only shown when verification fails) */}
+      {!sections.success && (
+        <>
+          {sections.example.length > 0 && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+              <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+                <Tooltip content="The counterexample used to justify the failure of the translation">
+                  <div className="flex items-center space-x-2 cursor-help">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Counterexample</span>
+                  </div>
+                </Tooltip>
+              </div>
+              <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+                {sections.example.map((line, idx) => (
+                  <Line key={idx} content={line} />
+                ))}
+              </pre>
+            </div>
+          )}
+
+          {sections.source.length > 0 && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+              <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+                <Tooltip content="The state of the source program that leads to verification failure">
+                  <div className="flex items-center space-x-2 cursor-help">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Source Program State</span>
+                  </div>
+                </Tooltip>
+              </div>
+              <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+                {sections.source.map((line, idx) => (
+                  <Line key={idx} content={line} />
+                ))}
+              </pre>
+            </div>
+          )}
+
+          {sections.target.length > 0 && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+              <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+                <Tooltip content="The state of the target program that leads to verification failure">
+                  <div className="flex items-center space-x-2 cursor-help">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Target Program State</span>
+                  </div>
+                </Tooltip>
+              </div>
+              <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+                {sections.target.map((line, idx) => (
+                  <Line key={idx} content={line} />
+                ))}
+              </pre>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 });

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 
-const VALIDATOR_URL = process.env.VALIDATOR_URL || 'http://localhost:3001';
+const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';
 
 export async function POST(request: Request) {
   try {
     const { cppCode, rustCode } = await request.json();
     
-    const response = await fetch(`${VALIDATOR_URL}/api/generate-ir`, {
+    const response = await fetch(`${RELAY_URL}/api/generate-ir`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -14,15 +14,16 @@ export async function POST(request: Request) {
       body: JSON.stringify({ cppCode, rustCode }),
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error('Failed to generate IR');
+      return NextResponse.json({ error: data }, { status: 500 });
     }
 
-    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
-      { error: 'Failed to generate IR' },
+      { error: error instanceof Error ? error.message : 'Failed to generate IR' },
       { status: 500 }
     );
   }

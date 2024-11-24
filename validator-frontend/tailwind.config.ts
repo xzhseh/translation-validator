@@ -9,8 +9,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+      },
+      fontFamily: {
+        'fira-code': ['var(--font-fira-code)', 'monospace'],
+        'fira-sans': ['var(--font-fira-sans)', 'sans-serif'],
       },
       keyframes: {
         'fade-in': {

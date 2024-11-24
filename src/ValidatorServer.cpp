@@ -179,7 +179,7 @@ void ValidatorServer::process_client(int client_socket) {
     }
 
     // send the result back to the client
-    std::string validator_message { std::to_string(result.length()) + " " + result };
+    std::string validator_message { std::to_string(result.length()) + " " + std::move(result) };
     send(client_socket, validator_message.c_str(), validator_message.length(), 0);
     close(client_socket);
 }
@@ -252,11 +252,23 @@ auto ValidatorServer::handle_generate_request(
     std::ofstream(rust_src) << rust_code;
 
     // generate IR using the same commands as `scripts/src2ir.py`
-    system(("clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str());
-    system(("rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str());
-    printer_.log("generated IR files: " + cpp_ir + " and " + rust_ir);
+    if (system(("clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
+        return "failed to generate C++ IR";
+    }
+    if (system(("rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
+        return "failed to generate Rust IR";
+    }
+    printer_.log("generated IR files: `" + cpp_ir + "` and `" + rust_ir + "`");
 
-    return "ok";
+    // read the generated IR files
+    std::ifstream cpp_ir_file(cpp_ir);
+    std::ifstream rust_ir_file(rust_ir);
+    std::stringstream cpp_ir_content, rust_ir_content;
+    cpp_ir_content << cpp_ir_file.rdbuf();
+    rust_ir_content << rust_ir_file.rdbuf();
+
+    // return both IRs separated by the separator
+    return cpp_ir_content.str() + separator + rust_ir_content.str();
 }
 
 int main() {
