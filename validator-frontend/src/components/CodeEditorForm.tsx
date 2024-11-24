@@ -5,6 +5,12 @@ import CodeEditor from './CodeEditor';
 import ExampleSelector from './ExampleSelector';
 import { ValidationResult } from '@/types/validator';
 import LLVMIRModal from './LLVMIRModal';
+import Toast from './Toast';
+
+interface ToastMessage {
+  type: 'error' | 'success' | 'info';
+  message: string;
+}
 
 export default function CodeEditorForm() {
   const [cppCode, setCppCode] = useState('');
@@ -16,6 +22,11 @@ export default function CodeEditorForm() {
   const [cppIR, setCppIR] = useState('');
   const [rustIR, setRustIR] = useState('');
   const [isGeneratingIR, setIsGeneratingIR] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = (message: string, type: 'error' | 'success' | 'info') => {
+    setToast({ message, type });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,11 +75,18 @@ export default function CodeEditorForm() {
 
       const validationData: ValidationResult = await validationResponse.json();
       setResult(validationData);
+      
+      if (validationData.success) {
+        showToast('Validation completed successfully!', 'success');
+      } else {
+        showToast('Validation failed. Check the results for details.', 'error');
+      }
     } catch (error) {
-      console.error('Operation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      showToast(errorMessage, 'error');
       setResult({
         success: false,
-        verifier_output: error instanceof Error ? error.message : 'An unknown error occurred',
+        verifier_output: errorMessage,
         num_errors: 1
       });
     } finally {
@@ -155,6 +173,14 @@ export default function CodeEditorForm() {
           <span>Validate Translation</span>
         )}
       </button>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </form>
   );
 }
