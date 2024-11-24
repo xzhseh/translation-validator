@@ -36,7 +36,9 @@ export default function CodeEditorForm() {
     setResult(null);
     
     try {
-      // First generate LLVM IR
+      // Show IR generation loading state
+      showToast('Generating LLVM IR...', 'info');
+      
       const irResponse = await fetch('/api/generate-ir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,8 +59,11 @@ export default function CodeEditorForm() {
       setRustIR(irData.rustIR);
       setShowIRModal(true);
 
-      // Then validate the translation
+      // Start validation
       setIsLoading(true);
+      showToast('IR generated, starting validation...', 'info');
+
+      // Then validate the translation
       const validationResponse = await fetch('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,20 +159,28 @@ export default function CodeEditorForm() {
 
       <button
         type="submit"
-        disabled={!cppCode || !rustCode || isLoading}
-        className="w-full relative inline-flex items-center justify-center px-8 py-3 
+        disabled={!cppCode || !rustCode || isLoading || isGeneratingIR}
+        className={`w-full relative inline-flex items-center justify-center px-8 py-3 
                  overflow-hidden text-white bg-gradient-to-r from-blue-600 to-purple-600 
                  rounded-lg group focus:outline-none focus:ring-2 focus:ring-offset-2 
                  focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed 
-                 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-150"
+                 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-150`}
       >
-        {isLoading ? (
+        {isGeneratingIR ? (
           <div className="flex items-center">
             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Validating...</span>
+            <span>Generating LLVM IR...</span>
+          </div>
+        ) : isLoading ? (
+          <div className="flex items-center">
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Validating Translation...</span>
           </div>
         ) : (
           <span>Validate Translation</span>
