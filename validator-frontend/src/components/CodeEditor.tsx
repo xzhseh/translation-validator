@@ -120,10 +120,12 @@ const CodeEditor = memo(({
   }, [language]);
 
   return (
-    <div className="relative h-[400px] border rounded-lg overflow-hidden">
+    <div className="relative h-[400px] rounded-xl overflow-hidden bg-white shadow-sm 
+                    border border-gray-100/50 backdrop-blur-sm transition-all duration-200
+                    hover:shadow-md">
       {showCopyButton && (
-        <div className="absolute top-2 right-2 z-10">
-          <CopyButton text={value} className="!px-3 !py-1 text-sm bg-white/90" />
+        <div className="absolute top-3 right-3 z-10">
+          <CopyButton text={value} className="!px-3 !py-1.5 text-sm bg-white/90 rounded-lg" />
         </div>
       )}
       <Editor
@@ -143,6 +145,17 @@ const CodeEditor = memo(({
           suggest: { showWords: false },
           fontFamily: 'Fira Code',
           fontLigatures: true,
+          padding: { top: 16, bottom: 16 },
+          smoothScrolling: true,
+          cursorBlinking: 'smooth',
+          cursorSmoothCaretAnimation: 'on',
+          roundedSelection: true,
+          contextmenu: false,
+          overviewRulerBorder: false,
+          scrollbar: {
+            vertical: 'hidden',
+            horizontal: 'hidden',
+          },
         }}
         onMount={handleEditorDidMount}
       />
