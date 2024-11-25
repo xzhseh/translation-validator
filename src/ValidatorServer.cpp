@@ -49,6 +49,21 @@ llvm::cl::opt<std::string> opt_rust_pattern {
 
 }  // namespace
 
+/// a simple RAII wrapper for a client socket
+class ClientSocket {
+    public:
+        explicit ClientSocket(int fd) : fd_(fd) {}
+        ~ClientSocket() { if (fd_ >= 0) close(fd_); }
+        
+        // Prevent copying
+        ClientSocket(const ClientSocket&) = delete;
+        ClientSocket& operator=(const ClientSocket&) = delete;
+        
+        int get() const { return fd_; }
+    private:
+        int fd_;
+};
+
 ValidatorServer::ValidatorServer(int port) 
     : port_(port)
     , printer_(std::cout, "validator_server")
@@ -92,7 +107,7 @@ void ValidatorServer::start() {
         }
         
         printer_.log("accepted client connection from socket " + std::to_string(client_socket));
-        process_client(client_socket);
+        recv_and_process_relay_server_request(client_socket);
     }
 }
 
@@ -108,7 +123,7 @@ void read_until_length(int client_socket, char *buffer, size_t length) {
 }
 
 /// the protocol between messages sent from the relay server is,
-/// <length><blankspace><message>
+/// :: <length><blankspace><message>
 /// where <length> is the exact length of the <message>.
 bool read_relay_message(int client_socket, std::string &buffer) {
     // first read the length of the message
@@ -139,53 +154,102 @@ bool read_relay_message(int client_socket, std::string &buffer) {
     return true;
 }
 
-void ValidatorServer::process_client(int client_socket) {
-    std::string buffer {};
-    if (!read_relay_message(client_socket, buffer)) {
-        printer_.print_error("failed to read message from client");
-        close(client_socket);
+void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
+    // the fork here is to isolate the alive2 verifier environment with the
+    // validator server, i.e., a single, isolated process will be used to handle
+    // each individual validation/generate request, this is needed because alive2's
+    // verifier has its own "bug" that will cause mysterious segmentation faults
+    // if running the `llvm_util::Verifier::compareFunctions` multiple times in
+    // the same process.
+    pid_t pid = fork();
+    if (pid < 0) {
+        printer_.print_error("failed to fork process for client request");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        try {
+            ClientSocket socket(client_socket);
+
+            // read the command from the relay server
+            auto command = [this, &socket]() -> std::string {
+                std::string buffer;
+                if (!read_relay_message(socket.get(), buffer)) {
+                    printer_.print_error("failed to read message from client");
+                    exit(EXIT_FAILURE);
+                }
+                return buffer;
+            }();
+
+            // process the command and get the result
+            const auto result = [this, &command]() -> std::string {
+                if (command.starts_with("VALIDATE")) {
+                    return handle_validate_command(command);
+                } else if (command.starts_with("GENERATE")) {
+                    return handle_generate_command(command);
+                }
+                printer_.print_error("unknown command received: " + command);
+                exit(EXIT_FAILURE);
+            }();
+
+            // send response back to relay server
+            const auto response = std::to_string(result.length()) + " " + result;
+            if (send(socket.get(), response.c_str(), response.length(), 0) < 0) {
+                printer_.print_error("failed to send response");
+            }
+
+            exit(EXIT_SUCCESS);
+        } catch (const std::exception &e) {
+            printer_.print_error("child process error: " + std::string(e.what()));
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // parent process simply returns
         return;
     }
-
-    std::string command { std::move(buffer) };
-    std::string result {};
-    if (command.starts_with("VALIDATE")) {
-        // <VALIDATE>__CPPIR__<cpp_ir>__RUSTIR__<rust_ir>__FUNCTION__<function_name>
-        std::string cpp_ir_separator { "__CPPIR__" };
-        std::string rust_ir_separator { "__RUSTIR__" };
-        std::string function_name_separator { "__FUNCTION__" };
-
-        size_t pos1 = command.find(cpp_ir_separator);
-        size_t pos2 = command.find(rust_ir_separator, pos1 + cpp_ir_separator.length());
-        size_t pos3 = command.find(function_name_separator, pos2 + rust_ir_separator.length());
-
-        std::string cpp_ir = command.substr(pos1 + cpp_ir_separator.length(), pos2 - pos1 - cpp_ir_separator.length());
-        std::string rust_ir = command.substr(pos2 + rust_ir_separator.length(), pos3 - pos2 - rust_ir_separator.length());
-        std::string function_name = command.substr(pos3 + function_name_separator.length());
-
-        result = handle_validate_request(cpp_ir, rust_ir, function_name);
-    } else if (command.starts_with("GENERATE")) {
-        // <GENERATE>__CPPCODE__<cpp_code>__RUSTCODE__<rust_code>
-        std::string cpp_code_separator { "__CPPCODE__" };
-        std::string rust_code_separator { "__RUSTCODE__" };
-
-        size_t pos1 = command.find(cpp_code_separator);
-        size_t pos2 = command.find(rust_code_separator, pos1 + cpp_code_separator.length());
-
-        std::string cpp_code = command.substr(pos1 + cpp_code_separator.length(), pos2 - pos1 - cpp_code_separator.length());
-        std::string rust_code = command.substr(pos2 + rust_code_separator.length());
-
-        result = handle_generate_request(cpp_code, rust_code);
-    }
-
-    // send the result back to the client
-    std::string validator_message { std::to_string(result.length()) + " " + std::move(result) };
-    send(client_socket, validator_message.c_str(), validator_message.length(), 0);
-    close(client_socket);
 }
 
-auto open_input_file(llvm::LLVMContext &context,
-                     const std::string &path) -> std::unique_ptr<llvm::Module> {
+auto ValidatorServer::handle_validate_command(const std::string& command) const -> std::string {
+    static const std::string cpp_ir_separator { "__CPPIR__" };
+    static const std::string rust_ir_separator { "__RUSTIR__" };
+    static const std::string function_name_separator { "__FUNCTION__" };
+
+    const auto pos1 = command.find(cpp_ir_separator);
+    const auto pos2 = command.find(rust_ir_separator, pos1 + cpp_ir_separator.length());
+    const auto pos3 = command.find(function_name_separator, pos2 + rust_ir_separator.length());
+
+    if (pos1 == std::string::npos || pos2 == std::string::npos || pos3 == std::string::npos) {
+        printer_.print_error("invalid validate command format");
+        exit(EXIT_FAILURE);
+    }
+
+    const auto cpp_ir = command.substr(pos1 + cpp_ir_separator.length(),
+                                     pos2 - pos1 - cpp_ir_separator.length());
+    const auto rust_ir = command.substr(pos2 + rust_ir_separator.length(),
+                                      pos3 - pos2 - rust_ir_separator.length());
+    const auto function_name = command.substr(pos3 + function_name_separator.length());
+
+    return handle_validate_request(cpp_ir, rust_ir, function_name);
+}
+
+auto ValidatorServer::handle_generate_command(const std::string& command) const -> std::string {
+    static const std::string cpp_code_separator { "__CPPCODE__" };
+    static const std::string rust_code_separator { "__RUSTCODE__" };
+
+    const auto pos1 = command.find(cpp_code_separator);
+    const auto pos2 = command.find(rust_code_separator, pos1 + cpp_code_separator.length());
+
+    if (pos1 == std::string::npos || pos2 == std::string::npos) {
+        printer_.print_error("invalid generate command format");
+        exit(EXIT_FAILURE);
+    }
+
+    const auto cpp_code = command.substr(pos1 + cpp_code_separator.length(),
+                                       pos2 - pos1 - cpp_code_separator.length());
+    const auto rust_code = command.substr(pos2 + rust_code_separator.length());
+
+    return handle_generate_request(cpp_code, rust_code);
+}
+
+auto open_input_file(llvm::LLVMContext &context, const std::string &path) -> std::unique_ptr<llvm::Module> {
     llvm::SMDiagnostic err {};
     auto module = llvm::parseIRFile(path, err, context);
 
@@ -200,7 +264,7 @@ auto open_input_file(llvm::LLVMContext &context,
 auto ValidatorServer::handle_validate_request(
     const std::string &cpp_ir, 
     const std::string &rust_ir,
-    const std::string &function_name) -> std::string {
+    const std::string &function_name) const -> std::string {
 
     // write IR to temporary files
     std::string cpp_file = "/tmp/__validator_server_cpp_ir.ll";
@@ -209,35 +273,38 @@ auto ValidatorServer::handle_validate_request(
     std::ofstream(rust_file) << rust_ir;
 
     // set up validation components
-    llvm::LLVMContext context {};
-    auto cpp_module = open_input_file(context, cpp_file);
-    auto rust_module = open_input_file(context, rust_file);
+    std::stringstream verifier_buffer {};
+    {
+        llvm::LLVMContext context {};
+        auto cpp_module = open_input_file(context, cpp_file);
+        auto rust_module = open_input_file(context, rust_file);
 
-    if (!cpp_module || !rust_module) {
-        return "failed to parse IR files";
+        if (!cpp_module || !rust_module) {
+            return "failed to parse IR files";
+        }
+
+        auto &data_layout = cpp_module->getDataLayout();
+        llvm::Triple target_triple { cpp_module->getTargetTriple() };
+        llvm::TargetLibraryInfoWrapperPass target_library_info { target_triple };
+
+        llvm_util::initializer llvm_util_initializer { std::cout, data_layout };
+        smt::smt_initializer smt_initializer {};
+
+        llvm_util::Verifier verifier { target_library_info, smt_initializer, verifier_buffer };
+
+        Comparer comparer { *cpp_module, *rust_module, opt_cpp_pattern,
+                        opt_rust_pattern, verifier, !function_name.empty(),
+                        function_name, function_name };
+
+        auto results = comparer.compare();
     }
 
-    auto &data_layout = cpp_module->getDataLayout();
-    llvm::Triple target_triple { cpp_module->getTargetTriple() };
-    llvm::TargetLibraryInfoWrapperPass target_library_info { target_triple };
-
-    llvm_util::initializer llvm_util_initializer { std::cout, data_layout };
-    smt::smt_initializer smt_initializer {};
-
-    std::stringstream verifier_buffer;
-    llvm_util::Verifier verifier { target_library_info, smt_initializer, verifier_buffer };
-
-    Comparer comparer { *cpp_module, *rust_module, opt_cpp_pattern,
-                       opt_rust_pattern, verifier, !function_name.empty(),
-                       function_name, function_name };
-
-    auto results = comparer.compare();
     return verifier_buffer.str();
 }
 
 auto ValidatorServer::handle_generate_request(
     const std::string &cpp_code,
-    const std::string &rust_code) -> std::string {
+    const std::string &rust_code) const -> std::string {
 
     std::string separator { "__GENERATED_IR_SEPARATOR__" };
 
@@ -274,5 +341,5 @@ auto ValidatorServer::handle_generate_request(
 int main() {
     ValidatorServer server { 3002 };
     server.start();
-    return 0;
+    return EXIT_SUCCESS;
 }
