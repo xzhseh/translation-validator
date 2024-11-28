@@ -1,5 +1,5 @@
 import Editor, { Monaco } from '@monaco-editor/react';
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback } from 'react';
 import CopyButton from './CopyButton';
 import { editor } from 'monaco-editor';
 
@@ -25,44 +25,43 @@ const CodeEditor = memo(({
     onChange(value || '');
   }, [onChange]);
 
-  // Setup Monaco editor with LLVM IR syntax highlighting and tooltips
+  // setup monaco editor with LLVM IR syntax highlighting and tooltips
   const handleEditorDidMount = useCallback((editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
     if (language === 'llvm') {
-      // Only register the language once
+      // note: only register the language once
       if (!monaco.languages.getLanguages().some(lang => lang.id === 'llvm')) {
-        // Register a new language
         monaco.languages.register({ id: 'llvm' });
 
-        // Define syntax highlighting rules
+        // the syntax highlighting rules
         monaco.languages.setMonarchTokensProvider('llvm', {
           tokenizer: {
             root: [
-              // Comments
+              // comments
               [/;.*$/, 'comment'],
-              
-              // Keywords
+
+              // keywords
               [/\b(define|declare|align|alloc|type|ret|br|switch|invoke|resume|unreachable|add|sub|mul|div|rem|and|or|xor|shl|lshr|ashr|icmp|fcmp|phi|select|call|load|store)\b/, 'keyword'],
-              
-              // Types
+
+              // types
               [/\b(i1|i8|i16|i32|i64|float|double|void|ptr)\b/, 'type'],
-              
-              // Variables
+
+              // variables
               [/%[a-zA-Z0-9_#]+/, 'variable'],
-              
-              // Function names
+
+              // function names
               [/@[a-zA-Z0-9_]+/, 'function'],
-              
-              // Numbers and hex values
+
+              // numbers and hex values
               [/#x[0-9a-fA-F]+/, 'number.hex'],
               [/\b\d+\b/, 'number'],
-              
-              // Technical terms
+
+              // technical terms
               [/\b(noundef|poison|UB)\b/, 'keyword.control'],
             ]
           }
         });
 
-        // Add hover provider for tooltips
+        // add hover provider for tooltips
         monaco.languages.registerHoverProvider('llvm', {
           provideHover: (model, position) => {
             const word = model.getWordAtPosition(position);
@@ -80,7 +79,7 @@ const CodeEditor = memo(({
               };
             }
 
-            // Add special cases for common patterns
+            // add special cases for common patterns
             if (term.startsWith('_ZN')) {
               return {
                 contents: [{ value: 'Rust mangled function name' }]
@@ -96,7 +95,7 @@ const CodeEditor = memo(({
           }
         });
 
-        // Add custom theme rules
+        // add custom theme rules
         monaco.editor.defineTheme('llvm-theme', {
           base: 'vs',
           inherit: true,
@@ -114,7 +113,7 @@ const CodeEditor = memo(({
         });
       }
 
-      // Set the theme
+      // set the theme
       monaco.editor.setTheme('llvm-theme');
     }
   }, [language]);

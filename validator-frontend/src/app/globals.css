@@ -81,7 +81,7 @@
   animation: slide-in 0.3s ease-out forwards;
 }
 
-/* Enhance smooth scroll */
+/* enhance smooth scroll */
 .smooth-scroll {
   scroll-behavior: smooth;
   &::-webkit-scrollbar {

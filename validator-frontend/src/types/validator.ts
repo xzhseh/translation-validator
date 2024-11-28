@@ -9,6 +9,8 @@ export interface ValidationOptions {
   cppFile: File;
   rustFile: File;
   functionName?: string;
-  cppPattern?: string;  // Defaults to "_Z"
-  rustPattern?: string; // Defaults to "_ZN"
+  // defaults to "_Z"
+  cppPattern?: string;  
+  // defaults to "_ZN"
+  rustPattern?: string; 
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+// note: relay server runs on localhost:3001 by default
 const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';
 
 export async function POST(request: Request) {

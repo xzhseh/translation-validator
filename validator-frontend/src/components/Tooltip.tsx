@@ -30,7 +30,7 @@ export default function Tooltip({ content, children, className = '' }: TooltipPr
   const hideTooltip = () => {
     timeoutRef.current = setTimeout(() => {
       setIsVisible(false);
-    }, 100); // Small delay to prevent flickering
+    }, 100); // note: the small delay here is to prevent flickering
   };
 
   return (

@@ -111,7 +111,7 @@ export default function CodeEditorForm() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
-          <label className="block text-lg font-semibold text-gray-800 mb-4">C++ Code</label>
+          <label className="block text-lg font-semibold text-gray-800 mb-4">Source C++ Code</label>
           <CodeEditor
             language="cpp"
             value={cppCode}
@@ -120,7 +120,7 @@ export default function CodeEditorForm() {
         </div>
 
         <div>
-          <label className="block text-lg font-semibold text-gray-800 mb-4">Rust Code</label>
+          <label className="block text-lg font-semibold text-gray-800 mb-4">Translated Rust Code</label>
           <CodeEditor
             language="rust"
             value={rustCode}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ValidationResult } from '@/types/validator';
 
+// note: relay server runs on localhost:3001 by default
 const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';
 
 export async function POST(request: Request) {
@@ -10,7 +11,8 @@ export async function POST(request: Request) {
     const response = await fetch(`${RELAY_URL}/api/validate`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',  // Relay server expects JSON!
+        // relay server expects json!
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ cppIR, rustIR, functionName }),
     });

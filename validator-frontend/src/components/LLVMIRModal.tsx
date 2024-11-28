@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { createRoot } from 'react-dom/client';
 import CodeEditor from './CodeEditor';
 import { ValidationResult } from '../types/validator';
 import ErrorBoundary from './ErrorBoundary';
@@ -16,42 +15,59 @@ interface LLVMIRModalProps {
   isValidating: boolean;
 }
 
-// Technical terms tooltips
+// technical terms tooltips
 export const technicalTerms: Record<string, string> = {
-  'noundef': 'Indicates that the value cannot be undefined',
+  'noundef': 'value cannot be undefined',
   'i32': '32-bit integer type',
-  'ptr': 'Pointer type',
-  'alloc': 'Memory allocation instruction',
-  'align': 'Memory alignment specification',
-  'offset': 'Memory address offset',
-  'block_id': 'Identifier for a memory block',
-  'address': 'Memory location',
-  'const': 'Constant value',
-  'alive': 'Indicates if memory block is still in use',
-  'poison': 'Represents undefined behavior',
-  'UB': 'Undefined Behavior - unpredictable program behavior',
-  '_ZN': 'Rust name mangling prefix',
-  '_Z': 'C++ name mangling prefix',
-  'Function': 'Function declaration or definition',
-  'triggered UB': 'Function execution resulted in Undefined Behavior',
-  'panic': 'Rust panic handler function',
-  'core': 'Rust core library function',
-  'Jump to': 'Branch instruction to a labeled block',
+  'ptr': 'pointer type',
+  'align': 'memory alignment requirement',
+  'define': 'declare a function with definition',
+  'declare': 'declare a function without definition',
+  'extractvalue': 'extract a member from an aggregate value',
+  'assume': 'tell optimizer to assume a condition is true',
+  'call': 'call a function',
+  'noreturn': 'function never returns to caller',
+  'offset': 'memory address offset',
+  'block_id': 'memory block identifier',
+  'address': 'memory location',
+  'local': 'memory block allocated in current function\'s stack frame',
+  'non-local': 'memory block allocated outside current function\'s stack frame',
+  'const': 'constant value',
+  'alive': 'memory block is still in use',
+  'poison': 'value that causes undefined behavior when used in computations',
+  'store': 'store value to memory location',
+  'load': 'load value from memory location',
+  'br': 'branch to different basic block',
+  'ret': 'return value from function',
+  'label': 'basic block identifier',
+  'switch': 'multi-way branch based on value',
+  'ule': 'unsigned less-than-or-equal comparison',
+  'uge': 'unsigned greater-than-or-equal comparison',
+  'ult': 'unsigned less-than comparison',
+  'ugt': 'unsigned greater-than comparison',
+  'icmp': 'integer comparison',
+  'fcmp': 'floating-point comparison',
+  'phi': 'select value based on predecessor block',
+  'alloca': 'allocate memory on stack',
+  'sext': 'extends a smaller integer to a larger one by copying the sign bit',
+  'zext': 'extends a smaller integer to a larger one by padding with zeros',
+  'trunc': 'converts a larger integer to a smaller one by dropping high-order bits',
+  'signext': 'extends a smaller integer to a larger one by copying the sign bit',
 };
 
-// Create a proper interface for sections
+// create a proper interface for sections
 interface ValidationSections {
   main: string[];
   source: string[];
   target: string[];
-  memory: string[];
+  error: string[];
   alive2_source: string[];
   alive2_target: string[];
   example: string[];
   success: boolean;
 }
 
-// Update the formatVerifierOutput function
+// update the formatVerifierOutput function
 const formatVerifierOutput = (output: string): ValidationSections => {
   const isSuccess = output.includes('Transformation seems to be correct!');
   
@@ -59,7 +75,7 @@ const formatVerifierOutput = (output: string): ValidationSections => {
     main: [],
     source: [],
     target: [],
-    memory: [],
+    error: [],
     alive2_source: [],
     alive2_target: [],
     example: [],
@@ -71,7 +87,7 @@ const formatVerifierOutput = (output: string): ValidationSections => {
   let inAlive2Section = false;
   
   lines.forEach(line => {
-    // Check for Alive2 IR sections
+    // check for Alive2 IR sections
     if (line.startsWith('----------------------------------------')) {
       inAlive2Section = true;
       currentSection = 'alive2_source';
@@ -91,25 +107,33 @@ const formatVerifierOutput = (output: string): ValidationSections => {
       return;
     }
  
-    // Check for counterexample sections
+    // check for counterexample sections
     if (!inAlive2Section) {
-      if (line.startsWith('Source:')) {
+      if (line.startsWith('ERROR:')) {
+        currentSection = 'error';
+      } else if (line.startsWith('Source:')) {
         currentSection = 'source';
+        return;
       } else if (line.startsWith('Target:')) {
         currentSection = 'target';
-      } else if (line.includes('SOURCE MEMORY STATE')) {
-        currentSection = 'memory';
+        return;
+      } else if (line.startsWith('SOURCE MEMORY STATE')) {
+        // seperator for source memory state inside source program state
+        sections.source.push('\n');
+      } else if (line.startsWith('TARGET MEMORY STATE')) {
+        // seperator for target memory state inside target program state
+        sections.target.push('\n');
       }
     }
     
-    // Add line to appropriate section
+    // add line to appropriate section
     sections[currentSection].push(line);
   });
   
   return sections;
 };
 
-// Add new TooltipPortal component
+// add a tooltip portal component
 const TooltipPortal = memo(({ content, children }: { content: string, children: React.ReactNode }) => {
   const [portalElement, setPortalElement] = useState<HTMLElement | null>(null);
 
@@ -134,7 +158,7 @@ const TooltipPortal = memo(({ content, children }: { content: string, children: 
 
 TooltipPortal.displayName = 'TooltipPortal';
 
-// Memoize the IR display section
+// memoize the IR display section
 interface IRDisplayProps {
   cppIR: string;
   rustIR: string;
@@ -187,7 +211,7 @@ const IRDisplay = memo(({ cppIR, rustIR }: IRDisplayProps) => (
 
 IRDisplay.displayName = 'IRDisplay';
 
-// Create a TooltipWrapper component to handle individual tooltips
+// create a tooltip wrapper component to handle individual tooltips
 const TooltipWrapper = memo(({ term, tooltip, children }: { 
   term: string; 
   tooltip: string; 
@@ -204,39 +228,49 @@ const TooltipWrapper = memo(({ term, tooltip, children }: {
 
 TooltipWrapper.displayName = 'TooltipWrapper';
 
-// Create a Line component to handle individual line rendering
+// create a line component to handle individual line rendering
 interface LineProps {
   content: string;
 }
 
 const Line = memo(({ content }: LineProps) => {
-  // Handle special cases first
+  // handle special cases first
   if (content.includes('ERROR:')) {
-    return (
-      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
-        <span className="text-rose-600 font-bold">ERROR:</span>
-        <span className="text-gray-800">{content.split('ERROR:')[1]}</span>
-      </div>
-    );
+    const content_after_splitting = content.split('ERROR: ')[1];
+    if (content.includes('type check')) {
+        return (
+            <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+                <span className="text-rose-600">{content_after_splitting.split('type check')[0]}</span>
+                <Tooltip content="whether the type of the two converted LLVM IR functions match with each other">
+                    <span className="text-rose-600 font-bold cursor-help border-b border-dotted border-rose-300">
+                        type check
+                    </span>
+                </Tooltip>
+                <span className="text-rose-600">{content_after_splitting.split('type check')[1]}</span>
+            </div>
+        );
+    } else if (content.includes('defined')) {
+        return (
+            <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+                <span className="text-rose-600">{content_after_splitting.split('defined')[0]}</span>
+                <Tooltip content="a program state that does not trigger any undefined behavior (UB)">
+                    <span className="text-rose-600 font-bold cursor-help border-b border-dotted border-rose-300">
+                        defined
+                    </span>
+                </Tooltip>
+                <span className="text-rose-600">{content_after_splitting.split('defined')[1]}</span>
+            </div>
+        );
+    } else {
+        return (
+            <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+                <span className="text-rose-600">{content_after_splitting}</span>
+            </div>
+        )
+    }
   }
 
-  if (content.includes("Transformation doesn't verify")) {
-    return (
-      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
-        <span className="text-rose-600 font-semibold">{content}</span>
-      </div>
-    );
-  }
-
-  if (content.match(/^Example:/)) {
-    return (
-      <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
-        <span className="text-gray-800 font-semibold">{content}</span>
-      </div>
-    );
-  }
-
-  if (content.match(/^(SOURCE MEMORY STATE|LOCAL BLOCKS|NON-LOCAL BLOCKS):$/)) {
+  if (content.match(/^(SOURCE MEMORY STATE|LOCAL BLOCKS|NON-LOCAL BLOCKS):?$/)) {
     return (
       <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
         <span className="text-blue-600 font-bold">{content}</span>
@@ -244,28 +278,30 @@ const Line = memo(({ content }: LineProps) => {
     );
   }
 
-  // Handle function-related lines specifically
+  // handle function-related lines specifically
   if (content.includes('Function @') || content.match(/^@[_A-Za-z]/)) {
     const functionMatch = content.match(/@([_A-Za-z0-9]+)/);
     const functionName = functionMatch?.[1];
-    
+
     if (functionName) {
       let tooltip = '';
 
-      // Determine the type of function and create appropriate tooltip
+      // determine the type of function and create appropriate tooltip
       if (functionName.startsWith('_ZN')) {
         tooltip = 'Rust mangled function name';
         if (functionName.includes('panic')) {
-          tooltip += ' (Panic handler)';
+          tooltip += ' (panic handler)';
         } else if (functionName.includes('core')) {
-          tooltip += ' (Core library function)';
+          tooltip += ' (core library function)';
         }
       } else if (functionName.startsWith('_Z')) {
         tooltip = 'C++ mangled function name';
+      } else if (functionName.startsWith('alloc')) {
+        tooltip = 'memory allocation function';
       }
 
       return (
-        <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+        <div className="block hover:bg-black/5 px-2 -mx-2 text-purple-600 rounded transition-colors">
           <span>Function </span>
           <Tooltip content={tooltip}>
             <span className="text-emerald-600 font-semibold cursor-help border-b border-dotted border-emerald-300">
@@ -287,34 +323,34 @@ const Line = memo(({ content }: LineProps) => {
     }
   }
 
-  // Handle jump/branch instructions
-  if (content.startsWith('>>')) {
+  // handle jump/branch instructions
+  if (content.startsWith('  >>')) {
     const jumpMatch = content.match(/>>\s*Jump to\s*(%\w+)/);
     if (jumpMatch) {
       return (
         <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
-          <span className="text-blue-500">{'>>'}</span>
+          <span className="text-blue-500">{'  >> '}</span>
           <Tooltip content="Branch instruction to a labeled block">
-            <span className="cursor-help border-b border-dotted border-gray-400"> Jump to </span>
+            <span className="cursor-help border-b border-dotted border-gray-400">Jump to</span>
           </Tooltip>
-          <span className="text-purple-600">{jumpMatch[1]}</span>
+          <span className="text-purple-600">{' ' + jumpMatch[1]}</span>
         </div>
       );
     }
   }
 
-  // Update the parts splitting regex to include function names
-  const parts = content.split(/((?:\b(?:i32|ptr|noundef)\b)|(?:%#?\d+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
+  // split the content into parts using a regex that matches the defined terms
+  const parts = content.split(/((?:\b(?:i32|ptr|declare|noreturn|define|call|extractvalue|assume|noundef|const|alive|block_id|offset|poison|local|store|load|br|ret|label|align|switch|signext|zext|trunc|sext|alloca|icmp|fcmp|phi|ule|uge|ult|ugt)\b)|(?:%[#_]?[\w.]+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
 
   return (
     <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
       {parts.map((part, index) => {
-        // Handle technical terms
+        // handle technical terms
         if (technicalTerms[part] || part === 'i32' || part === 'ptr') {
           const tooltip = technicalTerms[part] || 
             (part === 'i32' ? '32-bit integer type' : 
              part === 'ptr' ? 'Pointer type' : undefined);
-          
+
           return (
             <Tooltip key={index} content={tooltip || ''}>
               <span className="cursor-help border-b border-dotted border-gray-400">
@@ -324,12 +360,12 @@ const Line = memo(({ content }: LineProps) => {
           );
         }
 
-        // Handle variables
+        // handle variables
         if (part.startsWith('%')) {
           return <span key={index} className="text-purple-600">{part}</span>;
         }
 
-        // Handle block_id and offset
+        // handle block_id and offset
         if (part.startsWith('block_id=') || part.startsWith('offset=')) {
           const [label, value] = part.split('=');
           return (
@@ -339,7 +375,7 @@ const Line = memo(({ content }: LineProps) => {
           );
         }
 
-        // Handle hex values
+        // handle hex values
         if (part.startsWith('#x')) {
           const match = part.match(/#x([0-9a-fA-F]+)(?:\(([^)]+)\))?/);
           if (match) {
@@ -356,15 +392,22 @@ const Line = memo(({ content }: LineProps) => {
           }
         }
 
-        // Handle function names
+        // handle function names
         if (part.startsWith('@')) {
           const functionName = part.slice(1);
           let tooltip = '';
           
           if (functionName.startsWith('_ZN')) {
             tooltip = 'Rust mangled function name';
+            if (functionName.includes('panic')) {
+              tooltip += ' (panic handler)';
+            } else if (functionName.includes('core')) {
+              tooltip += ' (core library function)';
+            }
           } else if (functionName.startsWith('_Z')) {
             tooltip = 'C++ mangled function name';
+          } else if (functionName.startsWith('alloc')) {
+            tooltip = 'memory allocation function';
           }
 
           if (tooltip) {
@@ -378,7 +421,7 @@ const Line = memo(({ content }: LineProps) => {
           }
         }
 
-        // Return plain text for other parts
+        // return plain text for other parts
         return <span key={index}>{part}</span>;
       })}
     </div>
@@ -387,7 +430,7 @@ const Line = memo(({ content }: LineProps) => {
 
 Line.displayName = 'Line';
 
-// Update ValidationOutput component
+// update the validation output component
 const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) => {
   return (
     <div className="space-y-6">
@@ -400,7 +443,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
-                <span>Source Program (Alive2 IR)</span>
+                <span>Source C++ Program</span>
               </div>
             </Tooltip>
           </div>
@@ -420,7 +463,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
-                <span>Target Program (Alive2 IR)</span>
+                <span>Translated Rust Program</span>
               </div>
             </Tooltip>
           </div>
@@ -432,9 +475,29 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
         </div>
       )}
 
-      {/* Counterexample Sections (only shown when verification fails) */}
+      {/* Counterexample Sections (note: only shown when verification fails) */}
       {!sections.success && (
         <>
+          {sections.error.length > 0 && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+              <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+                <Tooltip content="The counterexample used to justify the failure of the translation">
+                  <div className="flex items-center space-x-2 cursor-help">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Error Message</span>
+                  </div>
+                </Tooltip>
+              </div>
+              <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
+                {sections.error.map((line, idx) => (
+                  <Line key={idx} content={line} />
+                ))}
+              </pre>
+            </div>
+          )}
+
           {sections.example.length > 0 && (
             <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
               <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
@@ -514,7 +577,7 @@ export default function LLVMIRModal({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
 
-  // Save scroll position before any state updates
+  // save scroll position before any state updates
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -527,7 +590,7 @@ export default function LLVMIRModal({
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Restore scroll position after any state updates
+  // restore scroll position after any state updates
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
