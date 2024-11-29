@@ -283,7 +283,7 @@ const Line = memo(({ content }: LineProps) => {
     }
   }
 
-  if (content.match(/^(SOURCE MEMORY STATE|LOCAL BLOCKS|NON-LOCAL BLOCKS):?$/)) {
+  if (content.match(/^(SOURCE MEMORY STATE|TARGET MEMORY STATE|LOCAL BLOCKS|NON-LOCAL BLOCKS):?$/)) {
     return (
       <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
         <span className="text-blue-600 font-bold">{content}</span>

@@ -25,6 +25,10 @@ export default function ExampleSelector({ onSelect }: { onSelect: (cpp: string, 
           <option value="simple_enum">Simple Enum</option>
           <option value="switch_case">Switch Case</option>
           <option value="add_u32">Add Unsigned Integers</option>
+          <option value="simple_generic">Simple Generic</option>
+          <option value="deref">Dereference</option>
+          <option value="binary_search">Binary Search</option>
+          <option value="access_array">Access Array</option>
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
