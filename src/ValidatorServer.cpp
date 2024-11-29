@@ -1,10 +1,5 @@
 #include "ValidatorServer.h"
 
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
-#include <pwd.h>
-
 #include "llvm_util/compare.h"
 #include "llvm_util/llvm2alive.h"
 #include "llvm_util/llvm_optimizer.h"
@@ -81,60 +76,10 @@ class ClientSocket {
         int fd_;
 };
 
-void ValidatorServer::write_log(const std::string &message) const {
-    // ensure the log storage directory exists
-    if (!std::filesystem::exists(LOG_STORAGE_PREFIX)) {
-        if (!std::filesystem::create_directories(LOG_STORAGE_PREFIX)) {
-            printer_.print_error("failed to create log storage directory: " +
-                                 std::string(LOG_STORAGE_PREFIX));
-        }
-    }
-
-    std::string log_path { std::string(LOG_STORAGE_PREFIX) + LOG_FILE_DEFAULT_NAME };
-
-    // use O_APPEND to ensure atomic appends
-    int fd { open(log_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644) };
-    if (fd == -1) {
-        printer_.print_error("failed to open log file: " + std::string(strerror(errno)));
-        return;
-    }
-
-    // RAII wrapper for file descriptor
-    struct FileGuard {
-        int fd;
-        ~FileGuard() { if (fd != -1) close(fd); }
-    } guard{ fd };
-
-    // acquire exclusive lock
-    struct flock lock {
-        .l_type = F_WRLCK,
-        .l_whence = SEEK_SET,
-        .l_start = 0,
-        // lock the entire file
-        .l_len = 0
-    };
-
-    if (fcntl(fd, F_SETLKW, &lock) == -1) {
-        return;
-    }
-
-    // get the current timestamp
-    auto now { std::chrono::system_clock::now() };
-    auto time { std::chrono::system_clock::to_time_t(now) };
-    std::string timestamp { std::ctime(&time) };
-    // remove the newline character at the end of the timestamp
-    timestamp.pop_back();
-
-    // prepare the log entry
-    std::string log_entry { "[" + timestamp + "] " + message + "\n" };
-
-    // write the log entry atomically
-    write(fd, log_entry.c_str(), log_entry.length());
-}
-
 ValidatorServer::ValidatorServer(int port) 
     : port_(port)
-    , printer_(std::cout, "validator_server")
+    , printer_(std::cout, "validator_server",
+               LOG_STORAGE_PREFIX, LOG_FILE_DEFAULT_NAME)
     , server_fd_(socket(AF_INET, SOCK_STREAM, 0))
     , address_ {
         .sin_family = AF_INET,
@@ -143,15 +88,13 @@ ValidatorServer::ValidatorServer(int port)
     }
 {
     if (server_fd_ < 0) {
-        printer_.print_error("failed to create socket",
-                             [this](const std::string &message) { write_log(message); });
+        printer_.print_error("failed to create socket", true);
     }
 
     // check bind result
     if (::bind(server_fd_, reinterpret_cast<struct sockaddr*>(&address_), sizeof(address_)) < 0) {
         close(server_fd_);
-        printer_.print_error("failed to bind to port " + std::to_string(port),
-                             [this](const std::string &message) { write_log(message); });
+        printer_.print_error("failed to bind to port " + std::to_string(port), true);
         exit(EXIT_FAILURE);
     }
 }
@@ -164,14 +107,14 @@ void ValidatorServer::start() {
     bind(server_fd_, (struct sockaddr *) &address_, sizeof(address_));
     listen(server_fd_, 3);
     printer_.print_info("validator server running at: " +
-                       std::string("http://127.0.0.1:") + std::to_string(port_) + std::string("/"),
-                       [this](const std::string &message) { write_log(message); });
+                      std::string("http://127.0.0.1:") + std::to_string(port_) + std::string("/"),
+                      true);
 
     // create the log storage directory if not exists
     if (!std::filesystem::exists(LOG_STORAGE_PREFIX)) {
         if (!std::filesystem::create_directories(LOG_STORAGE_PREFIX)) {
             printer_.print_error("failed to create log storage directory: " +
-                                 std::string(LOG_STORAGE_PREFIX));
+                                 std::string(LOG_STORAGE_PREFIX), true);
         }
     }
 
@@ -179,7 +122,7 @@ void ValidatorServer::start() {
     if (!std::filesystem::exists(TMP_STORAGE_PREFIX)) {
         if (!std::filesystem::create_directories(TMP_STORAGE_PREFIX)) {
             printer_.print_error("failed to create temporary storage directory: " +
-                                 std::string(TMP_STORAGE_PREFIX));
+                                 std::string(TMP_STORAGE_PREFIX), true);
         }
     }
 
@@ -189,13 +132,11 @@ void ValidatorServer::start() {
         int client_socket = accept(server_fd_, (struct sockaddr*) &client_addr, &client_len);
 
         if (client_socket < 0) {
-            printer_.print_error("failed to accept client connection",
-                                 [this](const std::string &message) { write_log(message); });
+            printer_.print_error("failed to accept client connection", true);
             continue;
         }
 
-        printer_.log("accepted client connection from socket " + std::to_string(client_socket),
-                     [this](const std::string &message) { write_log(message); });
+        printer_.log("accepted client connection from socket " + std::to_string(client_socket));
         recv_and_process_relay_server_request(client_socket);
     }
 }
@@ -252,8 +193,7 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
     // the same process.
     pid_t pid = fork();
     if (pid < 0) {
-        printer_.print_error("failed to fork process for client request",
-                             [this](const std::string &message) { write_log(message); });
+        printer_.print_error("failed to fork process for client request", true);
         exit(EXIT_FAILURE);
     } else if (pid == 0) {
         try {
@@ -263,8 +203,7 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
             auto command = [this, &socket]() -> std::string {
                 std::string buffer;
                 if (!read_relay_message(socket.get(), buffer)) {
-                    printer_.print_error("failed to read message from client",
-                                         [this](const std::string &message) { write_log(message); });
+                    printer_.print_error("failed to read message from client", true);
                     exit(EXIT_FAILURE);
                 }
                 return buffer;
@@ -277,22 +216,19 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
                 } else if (command.starts_with("GENERATE")) {
                     return handle_generate_command(command);
                 }
-                printer_.print_error("unknown command received: " + command,
-                                     [this](const std::string &message) { write_log(message); });
+                printer_.print_error("unknown command received: " + command, true);
                 exit(EXIT_FAILURE);
             }();
 
             // send response back to relay server
             const auto response = std::to_string(result.length()) + " " + result;
             if (send(socket.get(), response.c_str(), response.length(), 0) < 0) {
-                printer_.print_error("failed to send response",
-                                     [this](const std::string &message) { write_log(message); });
+                printer_.print_error("failed to send response", true);
             }
 
             exit(EXIT_SUCCESS);
         } catch (const std::exception &e) {
-            printer_.print_error("child process error: " + std::string(e.what()),
-                                 [this](const std::string &message) { write_log(message); });
+            printer_.print_error("child process error: " + std::string(e.what()), true);
             exit(EXIT_FAILURE);
         }
     } else {
@@ -311,8 +247,7 @@ auto ValidatorServer::handle_validate_command(const std::string& command) const 
     const auto pos3 = command.find(function_name_separator, pos2 + rust_ir_separator.length());
 
     if (pos1 == std::string::npos || pos2 == std::string::npos || pos3 == std::string::npos) {
-        printer_.print_error("invalid validate command format",
-                             [this](const std::string &message) { write_log(message); });
+        printer_.print_error("invalid validate command format", true);
         exit(EXIT_FAILURE);
     }
 
@@ -333,8 +268,7 @@ auto ValidatorServer::handle_generate_command(const std::string& command) const 
     const auto pos2 = command.find(rust_code_separator, pos1 + cpp_code_separator.length());
 
     if (pos1 == std::string::npos || pos2 == std::string::npos) {
-        printer_.print_error("invalid generate command format",
-                             [this](const std::string &message) { write_log(message); });
+        printer_.print_error("invalid generate command format", true);
         exit(EXIT_FAILURE);
     }
 
@@ -438,8 +372,7 @@ auto ValidatorServer::handle_generate_request(
     if (system(("rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
         return "failed to generate Rust IR, please check your Rust code for syntax errors.";
     }
-    printer_.log("generated IR files: `" + cpp_ir + "` and `" + rust_ir + "`",
-                 [this](const std::string &message) { write_log(message); });
+    printer_.log("generated IR files: `" + cpp_ir + "` and `" + rust_ir + "`");
 
     // read the generated IR files
     std::ifstream cpp_ir_file(cpp_ir);
