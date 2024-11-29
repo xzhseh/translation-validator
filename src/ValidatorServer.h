@@ -54,4 +54,7 @@ private:
 
     /// receive the request from the relay server and process it.
     void recv_and_process_relay_server_request(int client_socket);
+
+    /// write the message to the log file
+    void write_log(const std::string &message) const;
 };

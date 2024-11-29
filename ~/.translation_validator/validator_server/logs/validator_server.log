@@ -1,0 +1,28 @@
+Fri Nov 29 02:08:53 2024
+validator server running at: http://127.0.0.1:3002/
+Fri Nov 29 02:09:12 2024
+accepted client connection from socket 4
+Fri Nov 29 02:09:12 2024
+generated IR files: `/tmp/__validator_server__/10379869417584570822_cpp.ll` and `/tmp/__validator_server__/10379869417584570822_rs.ll`
+Fri Nov 29 02:09:12 2024
+accepted client connection from socket 5
+Fri Nov 29 02:09:41 2024
+accepted client connection from socket 6
+Fri Nov 29 02:09:41 2024
+generated IR files: `/tmp/__validator_server__/10942429755512485878_cpp.ll` and `/tmp/__validator_server__/10942429755512485878_rs.ll`
+Fri Nov 29 02:09:41 2024
+accepted client connection from socket 7
+Fri Nov 29 02:10:10 2024
+accepted client connection from socket 8
+Fri Nov 29 02:10:11 2024
+generated IR files: `/tmp/__validator_server__/5422962484564900822_cpp.ll` and `/tmp/__validator_server__/5422962484564900822_rs.ll`
+Fri Nov 29 02:10:11 2024
+accepted client connection from socket 9
+Fri Nov 29 02:10:33 2024
+accepted client connection from socket 10
+Fri Nov 29 02:10:34 2024
+generated IR files: `/tmp/__validator_server__/18092074262522681428_cpp.ll` and `/tmp/__validator_server__/18092074262522681428_rs.ll`
+Fri Nov 29 02:10:34 2024
+accepted client connection from socket 11
+Fri Nov 29 02:13:35 2024
+validator server running at: http://127.0.0.1:3002/

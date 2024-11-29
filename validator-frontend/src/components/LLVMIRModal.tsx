@@ -339,7 +339,7 @@ const Line = memo(({ content }: LineProps) => {
           {content.includes('triggered UB') && (
             <>
               <span> </span>
-              <Tooltip content="Function execution resulted in Undefined Behavior">
+              <Tooltip content="function execution resulted in Undefined Behavior">
                 <span className="text-rose-600 cursor-help border-b border-dotted border-rose-300">
                   triggered UB
                 </span>

@@ -2,6 +2,7 @@
 #define PRINTER_H
 
 #include <iostream>
+#include <functional>
 
 #define BOLD_YELLOW "\033[1;33m"
 #define BOLD_GREEN "\033[1;32m"
@@ -58,18 +59,30 @@ public:
            << RESET_COLOR;
     }
 
-    void print_error(const std::string &message) const {
+    void print_error(const std::string &message,
+                     std::function<void(const std::string &)> logging_hook = nullptr) const {
         os_ << BOLD_RED << "[" << module_name_ << "] " << message << RESET_COLOR
            << "\n";
+        if (logging_hook) {
+            logging_hook(message);
+        }
     }
 
-    void print_info(const std::string &message) const {
+    void print_info(const std::string &message,
+                    std::function<void(const std::string &)> logging_hook = nullptr) const {
         os_ << P_GREEN << "[" << module_name_ << "] " << message << RESET_COLOR << "\n";
+        if (logging_hook) {
+            logging_hook(message);
+        }
     }
 
-    void log(const std::string &message) const {
+    void log(const std::string &message,
+             std::function<void(const std::string &)> logging_hook = nullptr) const {
         os_ << P_GREEN << "[" << module_name_ << "::LOG] " << message
            << RESET_COLOR << "\n";
+        if (logging_hook) {
+            logging_hook(message);
+        }
     }
 
 private:
