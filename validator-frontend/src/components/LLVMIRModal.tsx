@@ -561,7 +561,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
               </div>
               <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                 {sections.example.map((line, idx) => (
-                  <Line key={idx} content={line.trim() === '' ? '(None)' : line} />
+                  <Line key={idx} content={(line === '' && sections.example.length === 1) ? '(None)' : line} />
                 ))}
               </pre>
             </div>
@@ -581,7 +581,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
               </div>
               <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                 {sections.source.map((line, idx) => (
-                  <Line key={idx} content={line} />
+                  <Line key={idx} content={(line === '' && sections.source.length === 1) ? '(None)' : line} />
                 ))}
               </pre>
             </div>
@@ -601,7 +601,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
               </div>
               <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                 {sections.target.map((line, idx) => (
-                  <Line key={idx} content={line} />
+                  <Line key={idx} content={(line === '' && sections.target.length === 1) ? '(None)' : line} />
                 ))}
               </pre>
             </div>

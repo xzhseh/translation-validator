@@ -12,6 +12,17 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
+/// the storage to store the logs for relay server
+const auto LOG_STORAGE_PREFIX = []() {
+    const char* home = getenv("HOME");
+    if (!home) {
+        // fallback to passwd entry if HOME is not set
+        home = getpwuid(getuid())->pw_dir;
+    }
+    return std::string(home) + "/.translation_validator/relay_server/logs/";
+}();
+constexpr auto LOG_FILE_DEFAULT_NAME = "relay_server.log";
+
 /// the RelayServer is a relay server that,
 ///   0. runs/listens on port 3001.
 ///   1. receives a request from the client, i.e., the `validator-frontend`, from port 3001.
@@ -141,15 +152,16 @@ public:
     void start() {
         try {
             listener.open().wait();
-            printer_.print_info("relay server running at: " + listener.uri().to_string());
+            printer_.print_info("relay server running at: " + listener.uri().to_string(), true);
         } catch (const std::exception& e) {
-            printer_.print_error("error starting relay server: " + std::string(e.what()));
+            printer_.print_error("error starting relay server: " + std::string(e.what()), true);
         }
     }
 
 private:
     http_listener listener;
-    Printer printer_ { std::cout, "relay_server" };
+    Printer printer_ { std::cout, "relay_server",
+                      LOG_STORAGE_PREFIX, LOG_FILE_DEFAULT_NAME };
 
     /// the validator server runs on "127.0.0.1:3002".
     const std::string validator_host { "127.0.0.1" };
@@ -213,14 +225,14 @@ private:
 
         if (inet_pton(AF_INET, validator_host.c_str(), &serv_addr.sin_addr) <= 0) {
             close(sock);
-            printer_.print_error("invalid address");
+            printer_.print_error("invalid address", true);
             error = true;
             return -1;
         }
 
         if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
             close(sock);
-            printer_.print_error("connection failed");
+            printer_.print_error("connection failed", true);
             error = true;
             return -1;
         }
@@ -243,14 +255,14 @@ private:
         ssize_t sent_bytes = send(sock, relay_message.c_str(), relay_message.length(), 0);
         if (sent_bytes < 0 || static_cast<size_t>(sent_bytes) != relay_message.length()) {
             close(sock);
-            printer_.print_error("failed to send command");
+            printer_.print_error("failed to send command", true);
             return { "error" };
         }
 
         std::string buffer {};
         if (!read_validator_message(sock, buffer)) {
             close(sock);
-            printer_.print_error("failed to read validator message");
+            printer_.print_error("failed to read validator message", true);
             return { "error" };
         }
 

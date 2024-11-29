@@ -110,15 +110,9 @@ void ValidatorServer::start() {
                       std::string("http://127.0.0.1:") + std::to_string(port_) + std::string("/"),
                       true);
 
-    // create the log storage directory if not exists
-    if (!std::filesystem::exists(LOG_STORAGE_PREFIX)) {
-        if (!std::filesystem::create_directories(LOG_STORAGE_PREFIX)) {
-            printer_.print_error("failed to create log storage directory: " +
-                                 std::string(LOG_STORAGE_PREFIX), true);
-        }
-    }
-
-    // create the temporary storage directory if not exists
+    // create the temporary storage directory if not exists,
+    // no need for log storage directory since the `write_log` in `Printer`
+    // will take care of the directory creation.
     if (!std::filesystem::exists(TMP_STORAGE_PREFIX)) {
         if (!std::filesystem::create_directories(TMP_STORAGE_PREFIX)) {
             printer_.print_error("failed to create temporary storage directory: " +

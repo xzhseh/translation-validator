@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <mutex>
 
 #define BOLD_YELLOW "\033[1;33m"
 #define BOLD_GREEN "\033[1;32m"
@@ -84,13 +85,20 @@ public:
         }
     }
 
-    void log(const std::string &message) const {
+    void log(const std::string &message, bool log_to_file = true) const {
         os_ << P_GREEN << "[" << module_name_ << "::LOG] " << message
            << RESET_COLOR << "\n";
-        write_log(message);
+        if (log_to_file) {
+            write_log(message);
+        }
     }
 
     void write_log(const std::string &message) const {
+        // for multi-threaded logging, this does not interfere/affect
+        // the file level locking for multi-process scenario since each process
+        // has its own forked mutex.
+        std::lock_guard<std::mutex> lock_guard { thread_log_mutex_ };
+
         if (log_storage_prefix_.empty() || log_file_name_.empty()) {
             // do not write log if the log storage prefix or file name is not set
             return;
@@ -98,7 +106,11 @@ public:
 
         // ensure the log storage directory exists
         if (!std::filesystem::exists(log_storage_prefix_)) {
-            if (!std::filesystem::create_directories(log_storage_prefix_)) {
+            bool result = std::filesystem::create_directories(log_storage_prefix_);
+            if (!result && !std::filesystem::exists(log_storage_prefix_)) {
+                // to prevent the strange (potential caching) error of the incorrect
+                // return value of `std::filesystem::create_directories`, we check
+                // both to ensure the directory does not exist.
                 print_error("failed to create log storage directory: " +
                             log_storage_prefix_);
             }
@@ -153,5 +165,6 @@ private:
     std::string module_name_;
     std::string log_storage_prefix_;
     std::string log_file_name_;
+    mutable std::mutex thread_log_mutex_;
 };
 #endif  // PRINTER_H

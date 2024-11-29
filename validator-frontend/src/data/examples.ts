@@ -156,7 +156,8 @@ int32_t binary_search(const int32_t *arr, int64_t size, const int32_t *target) {
     // ptr could be null here, which will trigger a segfault if ptr is null.
     return *ptr;
 }`,
-    rust: `pub fn deref(ptr: &i32) -> i32 {
+    rust: `/// a "safer" translation - is this semantically equivalent?
+pub fn deref(ptr: &i32) -> i32 {
     // \`ptr\` is guaranteed non-null by type system,
     // so that this is always safe, reference is guaranteed valid.
     *ptr

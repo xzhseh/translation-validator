@@ -32,7 +32,7 @@ export default function ExampleSelector({ onSelect }: { onSelect: (cpp: string, 
           <option value="simple_reference">Simple Reference</option>
           <option value="union">Union</option>
           <option value="initialize_array">Initialize Array</option>
-          <option value="div_by_zero">Divide by Zero</option>
+          <option value="div_by_zero">Divide By Zero</option>
           <option value="clone">Clone</option>
           <option value="callback">Callback</option>
           <option value="bitfield_ops">Bitfield Operations</option>
