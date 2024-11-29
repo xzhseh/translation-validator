@@ -108,7 +108,18 @@ export default function CodeEditorForm() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
-          <label className="block text-lg font-semibold text-gray-800 mb-4">Source C++ Code</label>
+          <div className="flex items-center mb-6">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-blue-50/80 backdrop-blur-sm 
+                            shadow-sm hover:shadow-md transition-all duration-300 
+                            border border-blue-100/50 group">
+              <img 
+                src="/icons/cpp_icon.svg" 
+                alt="C++" 
+                className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" 
+              />
+              <span className="text-base font-medium text-blue-600">Source C++ Code</span>
+            </div>
+          </div>
           <CodeEditor
             language="cpp"
             value={cppCode}
@@ -117,7 +128,18 @@ export default function CodeEditorForm() {
         </div>
 
         <div>
-          <label className="block text-lg font-semibold text-gray-800 mb-4">Translated Rust Code</label>
+          <div className="flex items-center mb-6">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-orange-50/80 backdrop-blur-sm 
+                            shadow-sm hover:shadow-md transition-all duration-300 
+                            border border-orange-100/50 group">
+              <img 
+                src="/icons/rust_icon.svg" 
+                alt="Rust" 
+                className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" 
+              />
+              <span className="text-base font-medium text-orange-600">Translated Rust Code</span>
+            </div>
+          </div>
           <CodeEditor
             language="rust"
             value={rustCode}
