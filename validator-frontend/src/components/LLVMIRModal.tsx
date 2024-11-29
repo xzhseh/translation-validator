@@ -26,6 +26,9 @@ export const technicalTerms: Record<string, string> = {
   'extractvalue': 'extract a member from an aggregate value',
   'assume': 'tell optimizer to assume a condition is true',
   'call': 'call a function',
+  'UB': 'Undefined Behavior in language specification',
+  'gep': 'computes address of a subelement in an aggregate data structure',
+  'inbounds': 'indicates pointer arithmetic will not overflow or go out of bounds',
   'noreturn': 'function never returns to caller',
   'offset': 'memory address offset',
   'block_id': 'memory block identifier',
@@ -65,6 +68,7 @@ interface ValidationSections {
   alive2_target: string[];
   example: string[];
   success: boolean;
+  ub_warning: string[];
 }
 
 // update the formatVerifierOutput function
@@ -79,12 +83,14 @@ const formatVerifierOutput = (output: string): ValidationSections => {
     alive2_source: [],
     alive2_target: [],
     example: [],
-    success: isSuccess
+    success: isSuccess,
+    ub_warning: []
   };
   
   const lines = output.split('\n');
   let currentSection: keyof Omit<ValidationSections, 'success'> = 'main';
   let inAlive2Section = false;
+  let inUBWarningSection = false;
   
   lines.forEach(line => {
     // check for Alive2 IR sections
@@ -106,7 +112,14 @@ const formatVerifierOutput = (output: string): ValidationSections => {
       currentSection = 'example';
       return;
     }
- 
+    if (line === '****************************************') {
+        inUBWarningSection = !inUBWarningSection;
+        return;
+    }
+    if (inUBWarningSection) {
+        sections.ub_warning.push(line);
+        return;
+    }
     // check for counterexample sections
     if (!inAlive2Section) {
       if (line.startsWith('ERROR:')) {
@@ -340,7 +353,7 @@ const Line = memo(({ content }: LineProps) => {
   }
 
   // split the content into parts using a regex that matches the defined terms
-  const parts = content.split(/((?:\b(?:i32|ptr|declare|noreturn|define|call|extractvalue|assume|noundef|const|alive|block_id|offset|poison|local|store|load|br|ret|label|align|switch|signext|zext|trunc|sext|alloca|icmp|fcmp|phi|ule|uge|ult|ugt)\b)|(?:%[#_]?[\w.]+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
+  const parts = content.split(/((?:\b(?:i32|ptr|declare|noreturn|UB|define|call|gep|inbounds|extractvalue|assume|noundef|const|alive|block_id|offset|poison|local|store|load|br|ret|label|align|switch|signext|zext|trunc|sext|alloca|icmp|fcmp|phi|ule|uge|ult|ugt)\b)|(?:%[#_]?[\w.]+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
 
   return (
     <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
@@ -469,6 +482,27 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
           </div>
           <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
             {sections.alive2_target.map((line, idx) => (
+              <Line key={idx} content={line} />
+            ))}
+          </pre>
+        </div>
+      )}
+
+      {/* The Potential Undefined Behavior Warning Sections */}
+      {sections.ub_warning.length > 0 && (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-100">
+          <div className="flex items-center space-x-2 text-gray-900 font-medium mb-4">
+            <Tooltip content="Undefined Behavior Detected For The Original C++ Program">
+              <div className="flex items-center space-x-2 cursor-help">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Undefined Behavior Detected</span>
+              </div>
+            </Tooltip>
+          </div>
+          <pre className="text-yellow-800 font-bold text-sm whitespace-pre-wrap leading-relaxed">
+            {sections.ub_warning.map((line, idx) => (
               <Line key={idx} content={line} />
             ))}
           </pre>
