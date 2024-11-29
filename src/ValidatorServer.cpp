@@ -100,12 +100,12 @@ void ValidatorServer::start() {
         struct sockaddr_in client_addr {};
         socklen_t client_len = sizeof(client_addr);
         int client_socket = accept(server_fd_, (struct sockaddr*) &client_addr, &client_len);
-        
+
         if (client_socket < 0) {
             printer_.print_error("failed to accept client connection");
             continue;
         }
-        
+
         printer_.log("accepted client connection from socket " + std::to_string(client_socket));
         recv_and_process_relay_server_request(client_socket);
     }
@@ -320,10 +320,10 @@ auto ValidatorServer::handle_generate_request(
 
     // generate IR using the same commands as `scripts/src2ir.py`
     if (system(("clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
-        return "failed to generate C++ IR";
+        return "failed to generate C++ IR, please check your C++ code for syntax errors.";
     }
     if (system(("rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
-        return "failed to generate Rust IR";
+        return "failed to generate Rust IR, please check your Rust code for syntax errors.";
     }
     printer_.log("generated IR files: `" + cpp_ir + "` and `" + rust_ir + "`");
 

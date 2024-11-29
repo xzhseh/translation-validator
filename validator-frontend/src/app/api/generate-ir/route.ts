@@ -17,15 +17,14 @@ export async function POST(request: Request) {
 
     const data = await response.json();
     
-    if (!response.ok) {
-      return NextResponse.json({ error: data }, { status: 500 });
+    if (!response.ok || data.error) {
+      return NextResponse.json({ error: data.error }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate IR' },
-      { status: 500 }
-    );
+    // needs to properly serialize the error message
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

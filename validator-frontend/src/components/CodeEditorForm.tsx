@@ -36,7 +36,7 @@ export default function CodeEditorForm() {
     setResult(null);
     
     try {
-      // Show IR generation loading state
+      // the IR generation loading state
       showToast('Generating LLVM IR...', 'info');
       
       const irResponse = await fetch('/api/generate-ir', {
@@ -44,26 +44,23 @@ export default function CodeEditorForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cppCode, rustCode }),
       });
-      
-      if (!irResponse.ok) {
-        throw new Error('Failed to generate IR');
-      }
-      
+
       const irData = await irResponse.json();
-      if (irData.error) {
+
+      if (!irResponse.ok || irData.error) {
         throw new Error(irData.error);
       }
 
-      // Store the generated IR
+      // store the generated IR
       setCppIR(irData.cppIR);
       setRustIR(irData.rustIR);
       setShowIRModal(true);
 
-      // Start validation
+      // start the validation
       setIsLoading(true);
       showToast('IR generated, starting validation...', 'info');
 
-      // Then validate the translation
+      // validate the translation
       const validationResponse = await fetch('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

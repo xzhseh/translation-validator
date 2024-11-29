@@ -61,9 +61,9 @@ public:
                 };
                 std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
-                    request.reply(status_codes::InternalError,
-                                 utility::conversions::to_string_t("failed to send command for generating IR"));
-                    throw;
+                    throw std::runtime_error("failed to send command for generating IR");
+                }  else if (result.find("failed to generate") != std::string::npos) {
+                    throw std::runtime_error(result);
                 }
 
                 // parse result into cpp and rust IR by reading the generated IR files
@@ -79,8 +79,9 @@ public:
 
                 return response;
             } catch (const std::exception &e) {
-                // create error message as string instead of json::value
-                request.reply(status_codes::InternalError, utility::conversions::to_string_t(e.what()));
+                json::value response {};
+                response["error"] = json::value::string(e.what());
+                request.reply(status_codes::InternalError, response);
                 // note: need to re-throw to break the promise chain
                 throw;
             }
