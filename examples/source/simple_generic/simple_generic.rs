@@ -12,7 +12,7 @@ pub extern "C" fn add_generic_int(a: i32, b: i32) -> i32 {
     add_generic(a, b)
 }
 
-// float version is commented out in C++, but would be:
+// explicit instantiation for float
 pub extern "C" fn add_generic_float(a: f32, b: f32) -> f32 {
     add_generic(a, b)
 }

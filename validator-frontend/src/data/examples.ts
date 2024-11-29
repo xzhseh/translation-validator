@@ -182,9 +182,114 @@ pub extern "C" fn add_generic_int(a: i32, b: i32) -> i32 {
     add_generic(a, b)
 }
 
-// float version is commented out in C++, but would be:
+// explicit instantiation for float
 pub extern "C" fn add_generic_float(a: f32, b: f32) -> f32 {
     add_generic(a, b)
+}`
+  },
+  initialize_array: {
+    cpp: `/// memory layout is considered when checking semantic equivalence,
+/// e.g., the array initialization in this cpp function uses both
+/// non-local and local (memory) blocks.
+void initialize_array() {
+    int arr[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+}`,
+    rust: `/// memory layout is different, i.e., only 40 bytes of
+/// local (memory) blocks are used.
+pub fn initialize_array() {
+    let _arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+}`
+  },
+  clone: {
+    cpp: `struct Point {
+    int x;
+    int y;
+};
+
+int clone_point_and_read_x(int x, int y) {
+    Point p = { x, y };
+    Point p_clone = p;
+    return p_clone.x;
+}`,
+    rust: `#[repr(C)]
+#[derive(Clone)]
+pub struct Point {
+    pub x: i32,
+    pub y: i32,
+}
+
+pub fn clone_point_and_read_x(x: i32, y: i32) -> i32 {
+    let p = Point { x, y };
+    let p_clone = p.clone();
+    p_clone.x
+}`
+  },
+  bitfield_ops: {
+    cpp: `unsigned int extract_bits(unsigned int value, unsigned int start, unsigned int length) {
+    return (value >> start) & ((1u << length) - 1);
+}`,
+    rust: `pub fn extract_bits(value: u32, start: u32, length: u32) -> u32 {
+    (value >> start) & ((1u32 << length) - 1)
+}`
+  },
+  div_by_zero: {
+    cpp: `/// ub will be detected by alive2, this is also considered semantically
+/// different from the rust version.
+int div_by_zero(int a, int b) {
+    return a / (b - b);
+}`,
+    rust: `/// the source cpp module is ub, and the function attrs are different
+/// so the verifier fails to compare the two even after switching the order.
+pub fn div_by_zero(a: i32, b: i32) -> i32 {
+    a / (b - b)
+}`
+  },
+  callback: {
+    cpp: `int process(int (*callback)(int), int x) {
+    return callback(x);
+}`,
+    rust: `pub fn process(callback: fn(i32) -> i32, x: i32) -> i32 {
+    callback(x)
+}`
+  },
+  simple_reference: {
+    cpp: `void swap(int &a, int &b) {
+    int temp = a;
+    a = b;
+    b = temp;
+}`,
+    rust: `/// the reference needs to be explicit mutable,
+/// note that the parameters in the generated ir functions are just pointers (e.g., ptr align 4 %a)
+/// since other guarantees are enforced by rust's type system at compile time -
+/// which is much simpler than those "explicit attribute requirements" in cpp's ir.
+/// see \`simple_reference_cpp/rs.ll\` for more details.
+pub fn swap(a: &mut i32, b: &mut i32) {
+    let temp = *a;
+    *a = *b;
+    *b = temp;
+}`
+  },
+  union: {
+    cpp: `union IntFloat {
+    int i;
+    float f;
+};
+
+float int_bits_to_float(int bits) {
+    IntFloat u;
+    u.i = bits;
+    return u.f;
+}`,
+    rust: `union IntFloat {
+    i: i32,
+    f: f32,
+}
+
+pub fn int_bits_to_float(bits: i32) -> f32 {
+    unsafe {
+        let u = IntFloat { i: bits };
+        u.f
+    }
 }`
   }
 };

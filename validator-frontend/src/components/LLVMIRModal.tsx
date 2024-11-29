@@ -103,6 +103,10 @@ const formatVerifierOutput = (output: string): ValidationSections => {
       currentSection = 'alive2_target';
       return;
     }
+    if (line === 'ERROR: Timeout') {
+        sections.error.push(line);
+        return;
+    }
     if (line.startsWith('Transformation')) {
       inAlive2Section = false;
       currentSection = 'main';
@@ -272,6 +276,17 @@ const Line = memo(({ content }: LineProps) => {
                     </span>
                 </Tooltip>
                 <span className="text-rose-600">{content_after_splitting.split('defined')[1]}</span>
+            </div>
+        );
+    } else if (content.includes('Timeout')) {
+        return (
+            <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">
+                <span className="text-rose-600">The verification process </span>
+                <Tooltip content="verification process of Alive2 exceeds the time limit">
+                    <span className="text-rose-600 font-bold cursor-help border-b border-dotted border-rose-300">
+                        timed out
+                    </span>
+                </Tooltip>
             </div>
         );
     } else {
@@ -546,7 +561,7 @@ const ValidationOutput = memo(({ sections }: { sections: ValidationSections }) =
               </div>
               <pre className="text-gray-800 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                 {sections.example.map((line, idx) => (
-                  <Line key={idx} content={line} />
+                  <Line key={idx} content={line.trim() === '' ? '(None)' : line} />
                 ))}
               </pre>
             </div>
