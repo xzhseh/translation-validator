@@ -37,7 +37,8 @@ private:
     auto handle_validate_request(
         const std::string &cpp_ir,
         const std::string &rust_ir,
-        const std::string &function_name) const -> std::string;
+        const std::string &cpp_function_name,
+        const std::string &rust_function_name) const -> std::string;
 
     /// handle the generate request sent from the relay server,
     /// will be called in a separate forked process after the GENERATE command

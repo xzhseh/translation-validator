@@ -233,16 +233,18 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
     }
 }
 
-auto ValidatorServer::handle_validate_command(const std::string& command) const -> std::string {
+auto ValidatorServer::handle_validate_command(const std::string &command) const -> std::string {
     static const std::string cpp_ir_separator { "__CPPIR__" };
     static const std::string rust_ir_separator { "__RUSTIR__" };
-    static const std::string function_name_separator { "__FUNCTION__" };
+    static const std::string cpp_function_name_separator { "__CPP_FUNCTION__" };
+    static const std::string rust_function_name_separator { "__RUST_FUNCTION__" };
 
     const auto pos1 = command.find(cpp_ir_separator);
     const auto pos2 = command.find(rust_ir_separator, pos1 + cpp_ir_separator.length());
-    const auto pos3 = command.find(function_name_separator, pos2 + rust_ir_separator.length());
+    const auto pos3 = command.find(cpp_function_name_separator, pos2 + rust_ir_separator.length());
+    const auto pos4 = command.find(rust_function_name_separator, pos3 + cpp_function_name_separator.length());
 
-    if (pos1 == std::string::npos || pos2 == std::string::npos || pos3 == std::string::npos) {
+    if (pos1 == std::string::npos || pos2 == std::string::npos || pos3 == std::string::npos || pos4 == std::string::npos) {
         printer_.print_error("invalid validate command format", true);
         exit(EXIT_FAILURE);
     }
@@ -251,12 +253,14 @@ auto ValidatorServer::handle_validate_command(const std::string& command) const 
                                      pos2 - pos1 - cpp_ir_separator.length());
     const auto rust_ir = command.substr(pos2 + rust_ir_separator.length(),
                                       pos3 - pos2 - rust_ir_separator.length());
-    const auto function_name = command.substr(pos3 + function_name_separator.length());
+    const auto cpp_function_name = command.substr(pos3 + cpp_function_name_separator.length(),
+                                                 pos4 - pos3 - cpp_function_name_separator.length());
+    const auto rust_function_name = command.substr(pos4 + rust_function_name_separator.length());
 
-    return handle_validate_request(cpp_ir, rust_ir, function_name);
+    return handle_validate_request(cpp_ir, rust_ir, cpp_function_name, rust_function_name);
 }
 
-auto ValidatorServer::handle_generate_command(const std::string& command) const -> std::string {
+auto ValidatorServer::handle_generate_command(const std::string &command) const -> std::string {
     static const std::string cpp_code_separator { "__CPPCODE__" };
     static const std::string rust_code_separator { "__RUSTCODE__" };
 
@@ -295,9 +299,13 @@ auto generate_random_hash(const std::string &cpp, const std::string &rust) -> st
 }
 
 auto ValidatorServer::handle_validate_request(
-    const std::string &cpp_ir, 
-    const std::string &rust_ir,
-    const std::string &function_name) const -> std::string {
+        const std::string &cpp_ir,
+        const std::string &rust_ir,
+        const std::string &cpp_function_name,
+        const std::string &rust_function_name) const -> std::string {
+    bool use_specified_function_name = cpp_function_name != "EMPTY" && rust_function_name != "EMPTY";
+    printer_.log(std::string("use specified function name: ") + (use_specified_function_name ? "true" : "false") +
+                "; cpp function name: " + cpp_function_name + "; rust function name: " + rust_function_name);
 
     // generate unique hash for this request
     auto random_hash = generate_random_hash(cpp_ir, rust_ir);
@@ -329,8 +337,8 @@ auto ValidatorServer::handle_validate_request(
         llvm_util::Verifier verifier { target_library_info, smt_initializer, verifier_buffer };
 
         Comparer comparer { *cpp_module, *rust_module, opt_cpp_pattern,
-                        opt_rust_pattern, verifier, !function_name.empty(),
-                        function_name, function_name };
+                         opt_rust_pattern, verifier, use_specified_function_name,
+                         cpp_function_name, rust_function_name };
 
         auto results = comparer.compare();
         if (!results.success && results.error_message == "multiple functions found") {
@@ -338,6 +346,10 @@ auto ValidatorServer::handle_validate_request(
             // the verifier will return the corresponding error message.
             verifier_buffer.str("multiple functions found with the provided IRs, "
                                 "have you specified the function names for validation?");
+        } else if (!results.success && results.error_message.find("function not found") != std::string::npos) {
+            // if the function is not found,
+            // the verifier will return the corresponding error message.
+            verifier_buffer.str(results.error_message);
         }
     }
 
@@ -349,8 +361,8 @@ auto ValidatorServer::handle_validate_request(
 }
 
 auto ValidatorServer::handle_generate_request(
-    const std::string &cpp_code,
-    const std::string &rust_code) const -> std::string {
+        const std::string &cpp_code,
+        const std::string &rust_code) const -> std::string {
 
     std::string separator { "__GENERATED_IR_SEPARATOR__" };
 

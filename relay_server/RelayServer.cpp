@@ -110,25 +110,25 @@ public:
         printer_.log("received validate request");
         request.extract_json().then([this, &request](json::value body) {
             try {
-                check_request_body(body, { "cppIR", "rustIR" });
+                check_request_body(body, { "cppIR", "rustIR", "cppFunctionName", "rustFunctionName" });
                 auto cpp_ir = body["cppIR"].as_string();
                 auto rust_ir = body["rustIR"].as_string();
-                std::string function_name { "" };
-                if (body.has_field("functionName")) {
-                    function_name = body["functionName"].as_string();
-                }
+                auto cpp_function_name = body["cppFunctionName"].as_string();
+                auto rust_function_name = body["rustFunctionName"].as_string();
 
                 // format command and send to validator
                 std::string command {
                     std::string("VALIDATE") +
                     "__CPPIR__" + std::move(cpp_ir) +
                     "__RUSTIR__" + std::move(rust_ir) +
-                    "__FUNCTION__" + std::move(function_name)
+                    "__CPP_FUNCTION__" + std::move(cpp_function_name) +
+                    "__RUST_FUNCTION__" + std::move(rust_function_name)
                 };
                 std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
                     throw std::runtime_error("failed to send command for validating IR");
-                } else if (result.find("multiple functions found") != std::string::npos) {
+                } else if (result.find("multiple functions found") != std::string::npos ||
+                           result.find("function not found") != std::string::npos) {
                     throw std::runtime_error(result);
                 }
 

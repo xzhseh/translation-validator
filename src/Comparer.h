@@ -65,8 +65,21 @@ public:
         llvm::Function *cpp_func { nullptr };
         llvm::Function *rust_func { nullptr };
         if (use_specified_function_name_) {
-            cpp_func = find_function_by_name(cpp_funcs, cpp_function_name_);
-            rust_func = find_function_by_name(rust_funcs, rust_function_name_);
+            bool found { true };
+            cpp_func = find_function_by_name(cpp_funcs, cpp_function_name_, found);
+            if (!found) {
+                return ComparisonResult {
+                    .success = false,
+                    .error_message = "cpp function not found: " + cpp_function_name_
+                };
+            }
+            rust_func = find_function_by_name(rust_funcs, rust_function_name_, found);
+            if (!found) {
+                return ComparisonResult {
+                    .success = false,
+                    .error_message = "rust function not found: " + rust_function_name_
+                };
+            }
         } else {
             cpp_func = cpp_funcs[0];
             rust_func = rust_funcs[0];
@@ -125,7 +138,7 @@ private:
     }
 
     auto find_function_by_name(const std::vector<llvm::Function *> &funcs,
-                               const std::string &name) -> llvm::Function * {
+                               const std::string &name, bool &found) -> llvm::Function * {
         auto it = std::find_if(funcs.begin(), funcs.end(),
                              [&name](const llvm::Function *func) {
                                  // note: make sure the use of `contains` here
@@ -133,8 +146,10 @@ private:
                              });
         if (it == funcs.end()) {
             printer_.print_error("function not found: " + name);
-            exit(EXIT_FAILURE);
+            found = false;
+            return nullptr;
         } else {
+            found = true;
             return *it;
         }
     }

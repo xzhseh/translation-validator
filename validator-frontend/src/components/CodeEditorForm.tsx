@@ -71,8 +71,8 @@ export default function CodeEditorForm() {
         body: JSON.stringify({
           cppIR: irData.cppIR,
           rustIR: irData.rustIR,
-          cppFunctionName: cppFunctionName || undefined,
-          rustFunctionName: rustFunctionName || undefined,
+          cppFunctionName: cppFunctionName.length > 0 ? cppFunctionName : 'EMPTY',
+          rustFunctionName: rustFunctionName.length > 0 ? rustFunctionName : 'EMPTY',
         }),
       });
 

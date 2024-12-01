@@ -307,8 +307,8 @@ const Line = memo(({ content }: LineProps) => {
   }
 
   // handle function-related lines specifically
-  if (content.includes('Function @') || content.match(/^@[_A-Za-z]/)) {
-    const functionMatch = content.match(/@([_A-Za-z0-9]+)/);
+  if (content.includes('Function @') || content.match(/^@[_A-Za-z0-9$.]+/)) {
+    const functionMatch = content.match(/@([_A-Za-z0-9$.]+)/);
     const functionName = functionMatch?.[1];
 
     if (functionName) {
@@ -368,7 +368,7 @@ const Line = memo(({ content }: LineProps) => {
   }
 
   // split the content into parts using a regex that matches the defined terms
-  const parts = content.split(/((?:\b(?:i32|ptr|declare|noreturn|UB|define|call|gep|inbounds|extractvalue|assume|noundef|const|alive|block_id|offset|poison|local|store|load|br|ret|label|align|switch|signext|zext|trunc|sext|alloca|icmp|fcmp|phi|ule|uge|ult|ugt)\b)|(?:%[#_]?[\w.]+)|(?:@[_A-Za-z0-9]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
+  const parts = content.split(/((?:\b(?:i32|ptr|declare|noreturn|UB|define|call|gep|inbounds|extractvalue|assume|noundef|const|alive|block_id|offset|poison|local|store|load|br|ret|label|align|switch|signext|zext|trunc|sext|alloca|icmp|fcmp|phi|ule|uge|ult|ugt)\b)|(?:%[#_]?[\w.]+)|(?:@[_A-Za-z0-9$.]+)|(?:#x[0-9a-fA-F]+(?:\([^)]+\))?)|(?:block_id=\d+)|(?:offset=\d+)|(?:Address=#x[0-9a-fA-F]+))/g);
 
   return (
     <div className="block hover:bg-black/5 px-2 -mx-2 rounded transition-colors">

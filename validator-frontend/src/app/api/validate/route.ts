@@ -6,7 +6,7 @@ const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';
 
 export async function POST(request: Request) {
   try {
-    const { cppIR, rustIR, functionName } = await request.json();
+    const { cppIR, rustIR, cppFunctionName, rustFunctionName } = await request.json();
     
     const response = await fetch(`${RELAY_URL}/api/validate`, {
       method: 'POST',
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
         // relay server expects json!
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ cppIR, rustIR, functionName }),
+      body: JSON.stringify({ cppIR, rustIR, cppFunctionName, rustFunctionName }),
     });
 
     const data = await response.json();
