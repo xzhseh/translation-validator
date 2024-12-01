@@ -15,7 +15,8 @@ interface ToastMessage {
 export default function CodeEditorForm() {
   const [cppCode, setCppCode] = useState('');
   const [rustCode, setRustCode] = useState('');
-  const [functionName, setFunctionName] = useState('');
+  const [cppFunctionName, setCppFunctionName] = useState('');
+  const [rustFunctionName, setRustFunctionName] = useState('');
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showIRModal, setShowIRModal] = useState(false);
@@ -30,11 +31,13 @@ export default function CodeEditorForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cppCode || !rustCode) return;
+    if (!cppCode || !rustCode) {
+      return;
+    }
 
     setIsGeneratingIR(true);
     setResult(null);
-    
+
     try {
       // the IR generation loading state
       showToast('Generating LLVM IR...', 'info');
@@ -47,6 +50,7 @@ export default function CodeEditorForm() {
 
       const irData = await irResponse.json();
 
+      // check for potential error for /api/generate-ir
       if (!irResponse.ok || irData.error) {
         throw new Error(irData.error);
       }
@@ -67,17 +71,19 @@ export default function CodeEditorForm() {
         body: JSON.stringify({
           cppIR: irData.cppIR,
           rustIR: irData.rustIR,
-          functionName: functionName || undefined,
+          cppFunctionName: cppFunctionName || undefined,
+          rustFunctionName: rustFunctionName || undefined,
         }),
       });
 
-      if (!validationResponse.ok) {
-        throw new Error('Validation failed');
+      const validationData = await validationResponse.json();
+
+      // check for potential error for /api/validate
+      if (!validationResponse.ok || validationData.error) {
+        throw new Error(validationData.error);
       }
 
-      const validationData: ValidationResult = await validationResponse.json();
       setResult(validationData);
-      
       if (validationData.success) {
         showToast('Validation completed successfully!', 'success');
       } else {
@@ -148,23 +154,59 @@ export default function CodeEditorForm() {
         </div>
       </div>
 
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center z-10 pointer-events-auto">
+            <div className="flex items-center gap-2 text-blue-600">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" 
+                className="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
+                <path fillRule="evenodd" d="M14.447 3.027a.75.75 0 01.527.92l-4.5 16.5a.75.75 0 01-1.448-.394l4.5-16.5a.75.75 0 01.921-.526zM16.72 6.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L21.44 12l-4.72-4.72a.75.75 0 010-1.06zm-9.44 0a.75.75 0 010 1.06L2.56 12l4.72 4.72a.75.75 0 11-1.06 1.06L.97 12.53a.75.75 0 010-1.06l5.25-5.25a.75.75 0 011.06 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <input
+            type="text"
+            value={cppFunctionName}
+            onChange={(e) => setCppFunctionName(e.target.value)}
+            className="peer block w-full pl-10 pr-4 py-3 
+                     bg-gradient-to-r from-blue-50/90 to-blue-100/50
+                     border border-blue-100/50 
+                     rounded-xl
+                     shadow-sm 
+                     transition-all duration-300
+                     focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                     hover:border-blue-200 hover:shadow-md hover:scale-[1.01]
+                     group-hover:shadow-md"
+            placeholder="C++ Function Name (Optional)"
+          />
         </div>
-        <input
-          type="text"
-          id="functionName"
-          value={functionName}
-          onChange={(e) => setFunctionName(e.target.value)}
-          className="block w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg 
-                   focus:ring-2 focus:ring-blue-500 focus:border-blue-500 
-                   shadow-sm transition-colors duration-200
-                   hover:border-gray-300"
-          placeholder="Function Name (Optional)"
-        />
+
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center z-10 pointer-events-auto">
+            <div className="flex items-center gap-2 text-orange-600">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" 
+                className="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
+                <path d="M5.507 4.048A3 3 0 017.785 3h8.43a3 3 0 012.278 1.048l1.722 2.008A4.533 4.533 0 0019.5 6h-15c-.243 0-.482.02-.715.056l1.722-2.008z" />
+                <path fillRule="evenodd" d="M1.5 10.5a3 3 0 013-3h15a3 3 0 110 6h-15a3 3 0 01-3-3zm15 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm2.25.75a.75.75 0 100-1.5.75.75 0 000 1.5zM4.5 15a3 3 0 100 6h15a3 3 0 100-6h-15zm11.25 3.75a.75.75 0 100-1.5.75.75 0 000 1.5zM19.5 18a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <input
+            type="text"
+            value={rustFunctionName}
+            onChange={(e) => setRustFunctionName(e.target.value)}
+            className="peer block w-full pl-10 pr-4 py-3
+                     bg-gradient-to-r from-orange-50/90 to-orange-100/50
+                     border border-orange-100/50
+                     rounded-xl
+                     shadow-sm
+                     transition-all duration-300
+                     focus:ring-2 focus:ring-orange-500 focus:border-transparent
+                     hover:border-orange-200 hover:shadow-md hover:scale-[1.01]
+                     group-hover:shadow-md"
+            placeholder="Rust Function Name (Optional)"
+          />
+        </div>
       </div>
 
       <LLVMIRModal

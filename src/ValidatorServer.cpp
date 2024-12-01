@@ -114,7 +114,9 @@ void ValidatorServer::start() {
     // no need for log storage directory since the `write_log` in `Printer`
     // will take care of the directory creation.
     if (!std::filesystem::exists(TMP_STORAGE_PREFIX)) {
-        if (!std::filesystem::create_directories(TMP_STORAGE_PREFIX)) {
+        bool created = std::filesystem::create_directories(TMP_STORAGE_PREFIX);
+        bool exists = std::filesystem::exists(TMP_STORAGE_PREFIX);
+        if (!created && !exists) {
             printer_.print_error("failed to create temporary storage directory: " +
                                  std::string(TMP_STORAGE_PREFIX), true);
         }
@@ -331,6 +333,12 @@ auto ValidatorServer::handle_validate_request(
                         function_name, function_name };
 
         auto results = comparer.compare();
+        if (!results.success && results.error_message == "multiple functions found") {
+            // if multiple functions are found,
+            // the verifier will return the corresponding error message.
+            verifier_buffer.str("multiple functions found with the provided IRs, "
+                                "have you specified the function names for validation?");
+        }
     }
 
     // cleanup the intermediate files

@@ -55,6 +55,12 @@ public:
         }
     }
 
+    void reply_with_error(http_request request, const std::string &error_message) {
+        json::value response {};
+        response["error"] = json::value::string(error_message);
+        request.reply(status_codes::InternalError, response);
+    }
+
     /// `POST /api/generate-ir`
     void handle_generate_ir(http_request request) {
         printer_.log("received generate-ir request");
@@ -90,9 +96,7 @@ public:
 
                 return response;
             } catch (const std::exception &e) {
-                json::value response {};
-                response["error"] = json::value::string(e.what());
-                request.reply(status_codes::InternalError, response);
+                reply_with_error(request, e.what());
                 // note: need to re-throw to break the promise chain
                 throw;
             }
@@ -123,9 +127,9 @@ public:
                 };
                 std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
-                    request.reply(status_codes::InternalError,
-                                 utility::conversions::to_string_t("failed to send command for validating IR"));
-                    throw;
+                    throw std::runtime_error("failed to send command for validating IR");
+                } else if (result.find("multiple functions found") != std::string::npos) {
+                    throw std::runtime_error(result);
                 }
 
                 // parse validation result
@@ -141,7 +145,7 @@ public:
                 return response;
             } catch (const std::exception &e) {
                 // same as `handle_generate_ir`
-                request.reply(status_codes::InternalError, utility::conversions::to_string_t(e.what()));
+                reply_with_error(request, e.what());
                 throw;
             }
         }).then([&request](json::value response) {

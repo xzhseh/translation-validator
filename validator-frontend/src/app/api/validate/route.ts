@@ -17,20 +17,13 @@ export async function POST(request: Request) {
       body: JSON.stringify({ cppIR, rustIR, functionName }),
     });
 
-    if (!response.ok) {
-      throw new Error('Validation failed');
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+        return NextResponse.json({ error: data.error }, { status: 500 });
     }
 
-    const data = await response.json();
-    const success = data.verifier_output.includes('Transformation seems to be correct!');
-
-    const result: ValidationResult = {
-      ...data,
-      success,
-      num_errors: success ? 0 : 1
-    };
-
-    return NextResponse.json(result);
+    return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
       { 
