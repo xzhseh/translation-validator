@@ -6,11 +6,11 @@ export default function Home() {
       <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="max-w-6xl mx-auto px-4 py-12">
           <div className="text-center mb-12 space-y-4">
-            <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-fira-sans">
+            <h1 className="text-5xl font-bold text-center animate-text-flow">
               Translation Validator
             </h1>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto font-fira-sans leading-relaxed">
-              Validate semantic equivalence between C++ and Rust LLVM IR using state-of-the-art verification
+            <p className="text-gray-600 text-lg max-w-4xl mx-auto font-fira-sans leading-relaxed">
+              Validate semantic equivalence between C++ and Rust LLVM IR using State-Of-The-Art Verification
             </p>
           </div>
   

@@ -136,3 +136,27 @@
   animation: border-flow-hover 2s ease infinite;
   background-size: 400% 400%;
 }
+
+@keyframes text-flow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-text-flow {
+  background: linear-gradient(
+    to right,
+    #4f46e5,
+    #7c3aed,
+    #6366f1,
+    #4f46e5
+  );
+  background-size: 300% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: text-flow 3s ease infinite;
+}
