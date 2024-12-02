@@ -98,3 +98,41 @@
     background: #94a3b8;
   }
 }
+
+@keyframes border-flow {
+  0%, 100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 20px rgba(124,58,237,0.3),
+                0 0 40px rgba(124,58,237,0.2),
+                inset 0 0 15px rgba(124,58,237,0.2);
+  }
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 20px rgba(59,130,246,0.3),
+                0 0 40px rgba(59,130,246,0.2),
+                inset 0 0 15px rgba(59,130,246,0.2);
+  }
+}
+
+@keyframes border-flow-hover {
+  0%, 100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 30px rgba(124,58,237,0.4),
+                0 0 60px rgba(124,58,237,0.2);
+  }
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 40px rgba(59,130,246,0.4),
+                0 0 80px rgba(59,130,246,0.2);
+  }
+}
+
+.animate-border-flow {
+  animation: border-flow 3s ease infinite;
+  background-size: 300% 300%;
+}
+
+.group:hover .animate-border-flow {
+  animation: border-flow-hover 2s ease infinite;
+  background-size: 400% 400%;
+}

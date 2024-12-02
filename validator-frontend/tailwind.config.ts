@@ -26,10 +26,15 @@ export default {
             opacity: '1', 
             transform: 'translateY(0)' 
           }
+        },
+        'border-flow': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         }
       },
       animation: {
-        'fade-in': 'fade-in 0.3s ease-out forwards'
+        'fade-in': 'fade-in 0.3s ease-out forwards',
+        'border-flow': 'border-flow 3s ease infinite',
       }
     },
   },

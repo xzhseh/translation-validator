@@ -119,45 +119,65 @@ const CodeEditor = memo(({
   }, [language]);
 
   return (
-    <div className="relative h-[400px] rounded-xl overflow-hidden bg-white shadow-sm 
-                    border border-gray-100/50 backdrop-blur-sm transition-all duration-200
-                    hover:shadow-md">
-      {showCopyButton && (
-        <div className="absolute top-3 right-3 z-10">
-          <CopyButton text={value} className="!px-3 !py-1.5 text-sm bg-white/90 rounded-lg" />
+    <div className="relative h-[400px] rounded-xl overflow-hidden group">
+      {/* Animated border container */}
+      <div className="absolute inset-0 p-[2px] rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 animate-border-flow
+                transition-all duration-300
+                group-hover:p-[3px]
+                group-hover:from-blue-600 group-hover:via-purple-600 group-hover:to-blue-600">
+        {/* White background and content container */}
+        <div className="relative h-full bg-gradient-to-br from-white/95 to-white/90 rounded-xl overflow-hidden 
+                        backdrop-blur-sm
+                        shadow-[inset_0_0_20px_rgba(0,0,0,0.05)]
+                        transition-all duration-300 
+                        group-hover:from-white group-hover:to-white/95
+                        group-hover:shadow-[inset_0_0_30px_rgba(0,0,0,0.07)]">
+          {/* Content */}
+          <div className="relative h-full transition-transform duration-300 group-hover:-translate-y-[2px]">
+            {showCopyButton && (
+              <div className="absolute top-3 right-3 z-10">
+                <CopyButton text={value} 
+                           className="!px-3 !py-1.5 text-sm 
+                                     bg-white/90 hover:bg-white 
+                                     rounded-lg shadow-sm 
+                                     transition-all duration-200
+                                     hover:shadow-md" />
+              </div>
+            )}
+            <Editor
+              height="100%"
+              defaultLanguage={language}
+              value={value}
+              onChange={handleChange}
+              theme="light"
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                readOnly: readOnly,
+                renderWhitespace: 'selection',
+                wordWrap: 'on',
+                suggest: { showWords: false },
+                fontFamily: 'Fira Code',
+                fontLigatures: true,
+                padding: { top: 16, bottom: 16 },
+                smoothScrolling: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                roundedSelection: true,
+                contextmenu: false,
+                overviewRulerBorder: false,
+                scrollbar: {
+                  vertical: 'hidden',
+                  horizontal: 'hidden',
+                },
+              }}
+              onMount={handleEditorDidMount}
+            />
+          </div>
         </div>
-      )}
-      <Editor
-        height="100%"
-        defaultLanguage={language}
-        value={value}
-        onChange={handleChange}
-        theme="light"
-        options={{
-          minimap: { enabled: false },
-          fontSize: 14,
-          lineNumbers: 'on',
-          scrollBeyondLastLine: false,
-          readOnly: readOnly,
-          renderWhitespace: 'selection',
-          wordWrap: 'on',
-          suggest: { showWords: false },
-          fontFamily: 'Fira Code',
-          fontLigatures: true,
-          padding: { top: 16, bottom: 16 },
-          smoothScrolling: true,
-          cursorBlinking: 'smooth',
-          cursorSmoothCaretAnimation: 'on',
-          roundedSelection: true,
-          contextmenu: false,
-          overviewRulerBorder: false,
-          scrollbar: {
-            vertical: 'hidden',
-            horizontal: 'hidden',
-          },
-        }}
-        onMount={handleEditorDidMount}
-      />
+      </div>
     </div>
   );
 });
