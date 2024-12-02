@@ -246,10 +246,11 @@ export default function CodeEditorForm() {
           type="submit"
           disabled={!cppCode || !rustCode || isLoading || isGeneratingIR}
           className={`w-full relative inline-flex items-center justify-center px-8 py-3 
-                   overflow-hidden text-white bg-gradient-to-r from-blue-600 to-purple-600 
+                   overflow-hidden text-white bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 
                    rounded-lg group focus:outline-none focus:ring-2 focus:ring-offset-2 
                    focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed 
-                   hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-150`}
+                   transform hover:-translate-y-0.5 transition-all duration-150
+                   animate-button-flow`}
         >
           {isGeneratingIR ? (
             <div className="flex items-center">

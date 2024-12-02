@@ -160,3 +160,46 @@
   background-clip: text;
   animation: text-flow 3s ease infinite;
 }
+
+@keyframes button-flow {
+  0% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 15px rgba(79,70,229,0.2);
+  }
+  100% {
+    background-position: 200% 50%;
+    box-shadow: 0 0 20px rgba(124,58,237,0.2);
+  }
+}
+
+@keyframes button-flow-hover {
+  0% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 30px rgba(79,70,229,0.4),
+                0 0 60px rgba(79,70,229,0.2);
+  }
+  100% {
+    background-position: 200% 50%;
+    box-shadow: 0 0 40px rgba(124,58,237,0.5),
+                0 0 80px rgba(124,58,237,0.3);
+  }
+}
+
+.animate-button-flow {
+  background-size: 200% auto;
+  animation: button-flow 4s linear infinite;
+  transition: all 0.2s ease;
+}
+
+.animate-button-flow:hover {
+  background-size: 200% auto;
+  animation: button-flow-hover 1s linear infinite;
+  background-image: linear-gradient(
+    to right,
+    #4f46e5,
+    #7c3aed,
+    #6366f1,
+    #4338ca,
+    #4f46e5
+  );
+}
