@@ -1,0 +1,141 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+use autodie;
+use File::Basename;
+
+sub compiling() {
+    foreach my $arg (@ARGV) {
+        return 1
+            if ($arg =~ /\.c$|\.cpp$|\.CC$|\.c\+\+$|\.cc$|\.cxx$|\.C$|\.c\+$/);
+    }
+    return 0;
+}
+
+my %whitelist;
+sub getenv($) {
+    (my $e) = @_;
+    die "oops buggy alivecc '$e'" unless $e =~ /^ALIVECC_/;
+    $whitelist{$e} = 1;
+    return undef unless exists($ENV{$e});
+    return $ENV{$e};
+}
+
+if ($0 =~ /alivecc$/) {
+    unshift @ARGV, "@LLVM_BINARY_DIR@/bin/clang";
+} elsif ($0 =~ /alive\+\+$/) {
+    unshift @ARGV, "@LLVM_BINARY_DIR@/bin/clang++";
+} else {
+    die "Unexpected invocation as '$0'";
+}
+
+# there's a bug in LLVM's CloneModule that causes, over time, a severe
+# memory leak; we can work around it by dropping debug info, which
+# should never have any effect on translation validation
+my @keepers = grep(!/^\-g/, @ARGV);
+@ARGV = @keepers;
+
+my $print_cmd = 0;
+
+if (compiling()) {
+
+    if (getenv("ALIVECC_CACHE")) {
+        push @ARGV, ("-mllvm", "-tv-cache=true");
+    }
+
+    if (getenv("ALIVECC_CACHE_ALLOW_VERSION_MISMATCH")) {
+        push @ARGV, ("-mllvm", "-tv-cache-allow-version-mismatch=true");
+    }
+
+    if (getenv("ALIVECC_PRINT_COMMAND")) {
+        $print_cmd = 1;
+    }
+
+    if (getenv("ALIVECC_QUIET")) {
+        push @ARGV, ("-mllvm", "-tv-quiet");
+    }
+
+    if (getenv("ALIVECC_PARALLEL_UNRESTRICTED")) {
+        push @ARGV, ("-mllvm", "-tv-parallel=unrestricted");
+    }
+
+    if (getenv("ALIVECC_BATCH_OPTS")) {
+        push @ARGV, ("-mllvm", "-tv-batch-opts");
+    }
+
+    if (getenv("ALIVECC_PARALLEL_FIFO")) {
+        push @ARGV, ("-mllvm", "-tv-parallel=fifo");
+    }
+
+    if (my $mem = getenv("ALIVECC_MAX_MEM")) {
+        push @ARGV, ("-mllvm", "-tv-smt-max-mem=".$mem);
+    }
+
+    if (getenv("ALIVECC_PARALLEL_NULL")) {
+        push @ARGV, ("-mllvm", "-tv-parallel=null");
+    }
+
+    if (getenv("ALIVECC_DISABLE_UNDEF_INPUT")) {
+        push @ARGV, ("-mllvm", "-tv-disable-undef-input");
+    }
+
+    if (getenv("ALIVECC_DISABLE_POISON_INPUT")) {
+        push @ARGV, ("-mllvm", "-tv-disable-poison-input");
+    }
+
+    if (my $to = getenv("ALIVECC_SMT_TO")) {
+        push @ARGV, ("-mllvm", "-tv-smt-to=".$to);
+    }
+
+    if (my $to = getenv("ALIVECC_SUBPROCESS_TIMEOUT")) {
+        push @ARGV, ("-mllvm", "-tv-subprocess-timeout=".$to);
+    }
+
+    if (getenv("ALIVECC_OVERWRITE_REPORTS")) {
+        push @ARGV, ("-mllvm", "-tv-overwrite-reports");
+    }
+
+    if (my $dir = getenv("ALIVECC_REPORT_DIR")) {
+        push @ARGV, ("-mllvm", "-tv-report-dir=".$dir);
+    }
+
+    if (my $logir = getenv("ALIVECC_SAVE_IR")) {
+        push @ARGV, ("-mllvm", "-tv-save-ir");
+    }
+
+    # sanity check: make sure we intercepted all environment variables
+    # of the form ALIVECC_*
+    foreach my $e (keys %ENV) {
+        next unless $e =~ /^ALIVECC_/;
+        die "unexpected alivecc environment variable '${e}'"
+            unless $whitelist{$e};
+    }
+    
+    # Alive2 doesn't yet understand TBAA info
+    push @ARGV, "-fno-strict-aliasing";
+
+    # Alive2 doesn't support global analyses
+    push @ARGV, ("-mllvm", "-enable-global-analyses=0");
+
+    my $TV_SHAREDLIB;
+    if ($^O =~ /darwin*/) {
+        # Mac
+        $TV_SHAREDLIB = "tv.dylib";
+    } else {
+        # Linux, Cygwin/Msys, or Win32?
+        $TV_SHAREDLIB = "tv.so";
+    }
+
+    push @ARGV, "-fpass-plugin=@CMAKE_BINARY_DIR@/tv/${TV_SHAREDLIB}";
+    push @ARGV, ("-Xclang", "-load", "-Xclang", "@CMAKE_BINARY_DIR@/tv/${TV_SHAREDLIB}");
+}
+
+if ($print_cmd) {
+    foreach my $arg (@ARGV) {
+        print "$arg ";
+    }
+    print "\n\n";
+}
+
+exec @ARGV;

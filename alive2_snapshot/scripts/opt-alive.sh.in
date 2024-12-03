@@ -1,0 +1,93 @@
+#!/bin/bash
+
+set -e
+
+# IPO passes aren't supported ATM
+# safe-stack: introduces non-cost globals
+# place-safepoints: places new function calls (@do_safepoint)
+# loop-extract: extracts a top-level loop into a distinct function
+# extract-blocks: extract specified blocks into a distinct function
+# attributor, function-attrs: inter procedural pass that deduces and/or propagates attributes
+# metarenamer: anonymizes function names
+# sample-profile: inlines functions
+SKIP_TV_PASSES="argpromotion deadargelim globalopt hotcoldsplit inline function-import called-value-propagation ipconstprop ipsccp mergefunc partial-inliner function-specialization =tbaa loop-extract extract-blocks safe-stack place-safepoints attributor function-attrs metarenamer sample-profile lowertypetests extract-blocks openmp-opt-cgscc prune-eh tailcallelim iroutliner ctx-instr-lower expand-variadics coro-annotation-elide globals-aa debug-pass-manager"
+
+# see opt.cpp: shouldForceLegacyPM()
+FORCE_OLD_NPM="codegenprepare interleaved-load-combine unreachableblockelim atomic-expand expandvp interleaved-access global-merge expand-reductions indirectbr-expand pre-isel-intrinsic-lowering loop-reduce expand-large-div-rem expand-large-fp-convert structurizecfg fix-irreducible expand-memcmp amdgpu-aa-wrapper aarch64-lit"
+
+# opt enables NPM by default.
+NPM_TV=1
+SKIP_TV=0
+
+OPT_ARGS=$@
+VERBOSE=0
+NO_TIMEOUT=0
+for arg in $OPT_ARGS; do
+  for p in $SKIP_TV_PASSES; do
+    if [[ $arg == *"$p"* || $arg == "-tbaa" ]]; then
+      SKIP_TV=1
+      break
+    fi
+  done
+
+  for p in $FORCE_OLD_NPM; do
+    if [[ $arg == "-$p" || $arg == "--$p" ]]; then
+      NPM_TV=0
+      break
+    fi
+  done
+
+  if [[ $arg == "--verbose" ]]; then
+    VERBOSE=1
+    echo VERBOSE
+    OPT_ARGS="${OPT_ARGS/--verbose/}"
+    continue
+  fi
+
+  if [[ $arg == "--no-timeout" ]]; then
+    NO_TIMEOUT=1
+    OPT_ARGS="${OPT_ARGS/--no-timeout/}"
+   continue
+  fi
+
+done
+
+TIMEOUT=""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # Mac
+  TV_SHAREDLIB=tv.dylib
+else
+  # Linux, Cygwin/Msys, or Win32?
+  TV_SHAREDLIB=tv.so
+  if [[ @FOR_ALIVE2_TEST@ == 0 && $NO_TIMEOUT == 0 ]]; then
+    TIMEOUT="timeout 4000"
+  fi
+fi
+
+TV=""
+if [[ $SKIP_TV == 0 && $NPM_TV == 0 ]]; then
+  TV="-tv"
+fi
+
+TV_REPORT_DIR=""
+TV_SMT_TO=""
+TV_SMT_STATS=""
+if [[ @FOR_ALIVE2_TEST@ == 0 ]]; then
+  TV_REPORT_DIR=-tv-report-dir=@CMAKE_BINARY_DIR@/logs
+  TV_SMT_TO=-tv-smt-to=20000
+  TV_SMT_STATS=-tv-smt-stats
+fi
+
+NPM_PLUGIN=""
+if [[ $SKIP_TV == 0 && $NPM_TV == 1 ]]; then
+  NPM_PLUGIN="-load-pass-plugin=@CMAKE_BINARY_DIR@/tv/$TV_SHAREDLIB"
+fi
+
+COMMAND="$TIMEOUT @LLVM_BINARY_DIR@/bin/opt -load=@CMAKE_BINARY_DIR@/tv/$TV_SHAREDLIB  $NPM_PLUGIN -tv-exit-on-error $TV $OPT_ARGS $TV $TV_SMT_TO $TV_REPORT_DIR $TV_SMT_STATS"
+
+if [[ $VERBOSE == 1 ]]; then
+  echo COMMAND: $COMMAND >&2
+  echo >&2
+fi
+
+$COMMAND
