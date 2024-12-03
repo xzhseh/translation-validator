@@ -199,33 +199,36 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
         exit(EXIT_FAILURE);
     } else if (pid == 0) {
         try {
-            // set resource limits for the current child process to prevent
-            // overwhelming/crashing/OOMing the validator server.
-            struct rlimit mem_limit {
-                // 1 GB soft limit
-                .rlim_cur = static_cast<rlim_t>(1024 * 1024 * 1024),
-                // 2 GB hard limit
-                .rlim_max = static_cast<rlim_t>(
-                    // to prevent integer overflow..
-                    static_cast<unsigned long long>(2) * 1024 * 1024 * 1024)
-            };
+            #ifdef __APPLE__
+                // skip setting memory limit on macOS as it requires root privileges..
+                printer_.print_info("skipping setting memory limit on macOS", true);
+            #else
+                // set resource limits for the current child process to prevent
+                // overwhelming/crashing/OOMing the validator server.
+                struct rlimit mem_limit {
+                    // 128 MB soft limit
+                    .rlim_cur = static_cast<rlim_t>(128 * 1024 * 1024),
+                    // 256 MB hard limit
+                    .rlim_max = static_cast<rlim_t>(256 * 1024 * 1024)
+                };
 
+                if (setrlimit(RLIMIT_AS, &mem_limit) != 0) {
+                    printer_.print_error("failed to set memory limit for child process: " +
+                                       std::to_string(pid) + "; error: " + std::strerror(errno), true);
+                    exit(EXIT_FAILURE);
+                }
+            #endif
+
+            // set the CPU time limit for the child process for all platforms
             struct rlimit cpu_limit {
                 // 30 seconds CPU time
                 .rlim_cur = 30,
                 // 60 seconds hard limit
                 .rlim_max = 60
             };
-
-            if (setrlimit(RLIMIT_AS, &mem_limit) != 0) {
-                printer_.print_error("failed to set memory limit for child process: " +
-                                   std::to_string(pid), true);
-                exit(EXIT_FAILURE);
-            }
-
             if (setrlimit(RLIMIT_CPU, &cpu_limit) != 0) {
                 printer_.print_error("failed to set CPU limit for child process: " +
-                                   std::to_string(pid), true);
+                                   std::to_string(pid) + "; error: " + std::strerror(errno), true);
                 exit(EXIT_FAILURE);
             }
 
@@ -418,17 +421,46 @@ auto ValidatorServer::handle_generate_request(
     std::ofstream(cpp_src) << cpp_code;
     std::ofstream(rust_src) << rust_code;
 
+    // helper function to check if a command exists
+    auto command_exists = [](const std::string &cmd) -> bool {
+        return std::system(("which " + cmd + " > /dev/null 2>&1").c_str()) == 0;
+    };
+
+    // get the timeout command for the current platform
+    auto get_timeout_cmd = [&](int timeout_seconds) -> std::string {
+        #ifdef __APPLE__
+            if (command_exists("gtimeout")) {
+                return "gtimeout " + std::to_string(timeout_seconds) + "s ";
+            } else if (command_exists("timeout")) {
+                return "timeout " + std::to_string(timeout_seconds) + "s ";
+            } else {
+                printer_.print_info("no timeout command found for macOS, "
+                                   "please install gnu-timeout or timeout", true);
+                return "";
+            }
+        #else
+            // for all other platforms, use the built-in timeout command.
+            if (command_exists("timeout")) {
+                return "timeout " + std::to_string(timeout_seconds) + "s ";
+            } else {
+                printer_.print_info("no timeout command found for your platform, "
+                                   "please install timeout", true);
+                return "";
+            }
+        #endif
+    };
+
     // generate IR using the same commands as `scripts/src2ir.py`
     // todo: allows user to specify a specific optimization level
-    if (system(("timeout 10s clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
-        std::string cpp_compile_error = std::string{ "C++ compilation timed out (10s) or failed.\n" } +
-               "Please check for:\n\t1) syntax errors\n\t2) complex template metaprogramming\n\t3) recursive types.";
+    if (std::system((get_timeout_cmd(10) + "clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
+        std::string cpp_compile_error = std::string{ "C++ compilation timed out (10s) or failed. " } +
+               "Please check for: 1) syntax errors 2) complex template metaprogramming 3) recursive types.";
         printer_.print_error(cpp_compile_error, true);
         return cpp_compile_error;
     }
-    if (system(("timeout 10s rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
-        std::string rust_compile_error = std::string{ "Rust compilation timed out (10s) or failed.\n" } +
-               "Please check for:\n\t1) syntax errors\n\t2) complex macros\n\t3) type recursion.";
+    if (std::system((get_timeout_cmd(10) + "rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
+        std::string rust_compile_error = std::string{ "Rust compilation timed out (10s) or failed. " } +
+               "Please check for: 1) syntax errors 2) complex macros 3) type recursion.";
         printer_.print_error(rust_compile_error, true);
         return rust_compile_error;
     }

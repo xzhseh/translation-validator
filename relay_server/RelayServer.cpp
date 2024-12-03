@@ -79,7 +79,10 @@ public:
                 std::string result = send_to_validator(std::move(command));
                 if (result == "error") {
                     throw std::runtime_error("failed to send command for generating IR");
-                }  else if (result.find("failed to generate") != std::string::npos) {
+                } else if (result.find("failed to generate") != std::string::npos ||
+                           result.find("compilation timed out (10s) or failed") != std::string::npos ||
+                           result.find("generated IR file exceeds the size limit") != std::string::npos ||
+                           result.find("generated IR file exceeds the length limit") != std::string::npos) {
                     throw std::runtime_error(result);
                 }
 
