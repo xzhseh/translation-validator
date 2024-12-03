@@ -389,9 +389,13 @@ auto ValidatorServer::handle_validate_request(
             verifier_buffer.str("multiple functions found with the provided IRs, "
                                 "have you specified the function names for validation?");
         } else if (!results.success && results.error_message.find("function not found") != std::string::npos) {
-            // if the function is not found,
-            // the verifier will return the corresponding error message.
+            // if the function is not found..
             verifier_buffer.str(results.error_message);
+        } else if (!results.success && results.error_message.find("no functions found") != std::string::npos) {
+            // if no functions are found.. (e.g., rust function without the `pub` keyword)
+            verifier_buffer.str("no functions found in the provided IRs, "
+                                "please double check your IRs for syntax errors and potential missing keywords. "
+                                "(e.g., `pub` keyword for rust function)");
         }
     }
 

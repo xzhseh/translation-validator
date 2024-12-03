@@ -131,7 +131,8 @@ public:
                 if (result == "error") {
                     throw std::runtime_error("failed to send command for validating IR");
                 } else if (result.find("multiple functions found") != std::string::npos ||
-                           result.find("function not found") != std::string::npos) {
+                           result.find("function not found") != std::string::npos ||
+                           result.find("no functions found") != std::string::npos) {
                     throw std::runtime_error(result);
                 }
 
