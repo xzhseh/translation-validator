@@ -1,5 +1,8 @@
 #include "ValidatorServer.h"
 
+#include <sys/resource.h>
+#include <sys/time.h>
+
 #include "llvm_util/compare.h"
 #include "llvm_util/llvm2alive.h"
 #include "llvm_util/llvm_optimizer.h"
@@ -42,6 +45,8 @@ const auto LOG_STORAGE_PREFIX = []() {
     return std::string(home) + "/.translation_validator/validator_server/logs/";
 }();
 constexpr auto LOG_FILE_DEFAULT_NAME = "validator_server.log";
+/// the limit for the size of the generated IR files, currently set to 50000 bytes.
+constexpr auto IR_FILE_SIZE_LIMIT = 50000;
 
 namespace {
 
@@ -152,9 +157,10 @@ void read_until_length(int client_socket, char *buffer, size_t length) {
 /// :: <length><blankspace><message>
 /// where <length> is the exact length of the <message>.
 bool read_relay_message(int client_socket, std::string &buffer) {
+    constexpr auto MAX_LENGTH_BUFFER_SIZE = 8;
     // first read the length of the message
     size_t n { 0 };
-    char length_buffer[9] { 0 };
+    char length_buffer[MAX_LENGTH_BUFFER_SIZE + 1] { 0 };
 
     while ((read(client_socket, length_buffer + n, 1)) > 0) {
         if (length_buffer[n] == ' ') {
@@ -170,7 +176,7 @@ bool read_relay_message(int client_socket, std::string &buffer) {
             return false;
         } else {
             n += 1;
-            if (n > 8) {
+            if (n >= MAX_LENGTH_BUFFER_SIZE) {
                 // length buffer overflow
                 return false;
             }
@@ -193,13 +199,44 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
         exit(EXIT_FAILURE);
     } else if (pid == 0) {
         try {
+            // set resource limits for the current child process to prevent
+            // overwhelming/crashing/OOMing the validator server.
+            struct rlimit mem_limit {
+                // 1 GB soft limit
+                .rlim_cur = static_cast<rlim_t>(1024 * 1024 * 1024),
+                // 2 GB hard limit
+                .rlim_max = static_cast<rlim_t>(
+                    // to prevent integer overflow..
+                    static_cast<unsigned long long>(2) * 1024 * 1024 * 1024)
+            };
+
+            struct rlimit cpu_limit {
+                // 30 seconds CPU time
+                .rlim_cur = 30,
+                // 60 seconds hard limit
+                .rlim_max = 60
+            };
+
+            if (setrlimit(RLIMIT_AS, &mem_limit) != 0) {
+                printer_.print_error("failed to set memory limit for child process: " +
+                                   std::to_string(pid), true);
+                exit(EXIT_FAILURE);
+            }
+
+            if (setrlimit(RLIMIT_CPU, &cpu_limit) != 0) {
+                printer_.print_error("failed to set CPU limit for child process: " +
+                                   std::to_string(pid), true);
+                exit(EXIT_FAILURE);
+            }
+
             ClientSocket socket(client_socket);
 
             // read the command from the relay server
-            auto command = [this, &socket]() -> std::string {
+            auto command = [this, &socket, pid]() -> std::string {
                 std::string buffer;
                 if (!read_relay_message(socket.get(), buffer)) {
-                    printer_.print_error("failed to read message from client", true);
+                    printer_.print_error("failed to read message from client for child process: " +
+                                       std::to_string(pid), true);
                     exit(EXIT_FAILURE);
                 }
                 return buffer;
@@ -219,12 +256,14 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
             // send response back to relay server
             const auto response = std::to_string(result.length()) + " " + result;
             if (send(socket.get(), response.c_str(), response.length(), 0) < 0) {
-                printer_.print_error("failed to send response", true);
+                printer_.print_error("failed to send response for child process: " +
+                                   std::to_string(pid), true);
             }
 
             exit(EXIT_SUCCESS);
         } catch (const std::exception &e) {
-            printer_.print_error("child process error: " + std::string(e.what()), true);
+            printer_.print_error("child process error: " + std::string(e.what()) +
+                                 "; pid: " + std::to_string(pid), true);
             exit(EXIT_FAILURE);
         }
     } else {
@@ -380,20 +419,70 @@ auto ValidatorServer::handle_generate_request(
     std::ofstream(rust_src) << rust_code;
 
     // generate IR using the same commands as `scripts/src2ir.py`
-    if (system(("clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
-        return "failed to generate C++ IR, please check your C++ code for syntax errors.";
+    // todo: allows user to specify a specific optimization level
+    if (system(("timeout 10s clang++ -O0 -S -emit-llvm " + cpp_src + " -o " + cpp_ir).c_str()) != 0) {
+        std::string cpp_compile_error = std::string{ "C++ compilation timed out (10s) or failed.\n" } +
+               "Please check for:\n\t1) syntax errors\n\t2) complex template metaprogramming\n\t3) recursive types.";
+        printer_.print_error(cpp_compile_error, true);
+        return cpp_compile_error;
     }
-    if (system(("rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
-        return "failed to generate Rust IR, please check your Rust code for syntax errors.";
+    if (system(("timeout 10s rustc --emit=llvm-ir --crate-type=lib " + rust_src + " -o " + rust_ir).c_str()) != 0) {
+        std::string rust_compile_error = std::string{ "Rust compilation timed out (10s) or failed.\n" } +
+               "Please check for:\n\t1) syntax errors\n\t2) complex macros\n\t3) type recursion.";
+        printer_.print_error(rust_compile_error, true);
+        return rust_compile_error;
     }
     printer_.log("generated IR files: `" + cpp_ir + "` and `" + rust_ir + "`");
 
-    // read the generated IR files
+    // read the generated IR files with security size check
     std::ifstream cpp_ir_file(cpp_ir);
     std::ifstream rust_ir_file(rust_ir);
+
+    // check if the generated IR files exceed the size limit
+    auto check_ir_file_size = [&](const std::filesystem::path &path, const std::string &name)
+        -> std::pair<bool, std::string> {
+        if (std::filesystem::file_size(path) > IR_FILE_SIZE_LIMIT) {
+            std::string file_exceeds_error = name + " generated IR file exceeds the size limit (" +
+                                                std::to_string(IR_FILE_SIZE_LIMIT) + " bytes), "
+                                                "please check your code for complex types or macros.";
+            printer_.print_error(file_exceeds_error, true);
+            return { true, file_exceeds_error };
+        }
+        return { false, "" };
+    };
+
+    std::filesystem::path cpp_ir_path(cpp_ir);
+    std::filesystem::path rust_ir_path(rust_ir);
+
+    auto [cpp_ir_exceeds_limit, cpp_ir_exceeds_error] = check_ir_file_size(cpp_ir_path, "C++");
+    if (cpp_ir_exceeds_limit) {
+        return cpp_ir_exceeds_error;
+    }
+    auto [rust_ir_exceeds_limit, rust_ir_exceeds_error] = check_ir_file_size(rust_ir_path, "Rust");
+    if (rust_ir_exceeds_limit) {
+        return rust_ir_exceeds_error;
+    }
+
     std::stringstream cpp_ir_content, rust_ir_content;
     cpp_ir_content << cpp_ir_file.rdbuf();
+    // there may be discrepancies between the number of characters from `std::stringstream`
+    // and the actual bytes read from the file, so we also need to check the length of the string.
+    // note: both file_size and string_length share the same limit of `50000`.
+    if (cpp_ir_content.str().length() > IR_FILE_SIZE_LIMIT) {
+        std::string cpp_ir_length_error = "C++ generated IR file exceeds the length limit (" +
+                                           std::to_string(IR_FILE_SIZE_LIMIT) + " bytes), "
+                                           "please check your code for complex types or macros.";
+        printer_.print_error(cpp_ir_length_error, true);
+        return cpp_ir_length_error;
+    }
     rust_ir_content << rust_ir_file.rdbuf();
+    if (rust_ir_content.str().length() > IR_FILE_SIZE_LIMIT) {
+        std::string rust_ir_length_error = "Rust generated IR file exceeds the length limit (" +
+                                           std::to_string(IR_FILE_SIZE_LIMIT) + " bytes), "
+                                           "please check your code for complex types or macros.";
+        printer_.print_error(rust_ir_length_error, true);
+        return rust_ir_length_error;
+    }
 
     // cleanup the intermediate files
     std::remove(cpp_src.c_str());

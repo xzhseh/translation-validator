@@ -29,6 +29,15 @@ export default function CodeEditorForm() {
     setToast({ message, type });
   };
 
+  const CODE_LENGTH_LIMIT = 10000;
+  const LLVM_IR_LENGTH_LIMIT = 50000;
+  const checkLimit = (codeName: string, code: string, typeName: string, limit: number) => {
+    if (code.length > limit) {
+      throw new Error(`${codeName} length limit exceeded.
+                      Please keep the ${typeName} under ${limit} characters.`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cppCode || !rustCode) {
@@ -41,7 +50,11 @@ export default function CodeEditorForm() {
     try {
       // the IR generation loading state
       showToast('Generating LLVM IR...', 'info');
-      
+
+      // code length check
+      checkLimit('C++ code', cppCode, 'C++ code', CODE_LENGTH_LIMIT);
+      checkLimit('Rust code', rustCode, 'Rust code', CODE_LENGTH_LIMIT);
+
       const irResponse = await fetch('/api/generate-ir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,7 +75,11 @@ export default function CodeEditorForm() {
 
       // start the validation
       setIsLoading(true);
-      showToast('IR generated, starting validation...', 'info');
+      showToast('LLVM IR generated, starting validation...', 'info');
+
+      // llvm ir length check
+      checkLimit('C++ IR', irData.cppIR, 'generated C++ IR', LLVM_IR_LENGTH_LIMIT);
+      checkLimit('Rust IR', irData.rustIR, 'generated Rust IR', LLVM_IR_LENGTH_LIMIT);
 
       // validate the translation
       const validationResponse = await fetch('/api/validate', {
