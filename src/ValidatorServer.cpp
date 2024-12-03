@@ -499,6 +499,14 @@ auto ValidatorServer::handle_generate_request(
         return rust_ir_exceeds_error;
     }
 
+    // helper function to cleanup the intermediate files
+    auto cleanup_intermediate_files = [&]() {
+        std::remove(cpp_src.c_str());
+        std::remove(rust_src.c_str());
+        std::remove(cpp_ir.c_str());
+        std::remove(rust_ir.c_str());
+    };
+
     std::stringstream cpp_ir_content, rust_ir_content;
     cpp_ir_content << cpp_ir_file.rdbuf();
     // there may be discrepancies between the number of characters from `std::stringstream`
@@ -509,6 +517,7 @@ auto ValidatorServer::handle_generate_request(
                                            std::to_string(IR_FILE_SIZE_LIMIT) + " bytes), "
                                            "please check your code for complex types or macros.";
         printer_.print_error(cpp_ir_length_error, true);
+        cleanup_intermediate_files();
         return cpp_ir_length_error;
     }
     rust_ir_content << rust_ir_file.rdbuf();
@@ -517,14 +526,12 @@ auto ValidatorServer::handle_generate_request(
                                            std::to_string(IR_FILE_SIZE_LIMIT) + " bytes), "
                                            "please check your code for complex types or macros.";
         printer_.print_error(rust_ir_length_error, true);
+        cleanup_intermediate_files();
         return rust_ir_length_error;
     }
 
-    // cleanup the intermediate files
-    std::remove(cpp_src.c_str());
-    std::remove(rust_src.c_str());
-    std::remove(cpp_ir.c_str());
-    std::remove(rust_ir.c_str());
+    // cleanup the generated intermediate files before returning
+    cleanup_intermediate_files();
 
     // return both IRs separated by the separator
     return cpp_ir_content.str() + separator + rust_ir_content.str();
