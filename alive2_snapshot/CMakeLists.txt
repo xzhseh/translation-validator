@@ -179,6 +179,10 @@ if (BUILD_LLVM_UTILS OR BUILD_TV)
     message(FATAL_ERROR "LLVM must be built with '-DLLVM_ENABLE_RTTI=ON'")
   endif()
 
+  if (NOT LLVM_ENABLE_EH)
+    message(WARNING "LLVM must be built with '-DLLVM_ENABLE_EH=ON', currently ignored due to compatibility issues.")
+  endif()
+
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(AddLLVM)
 

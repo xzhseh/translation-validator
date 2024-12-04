@@ -56,6 +56,9 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
                 exit 1
             fi
         fi
+    else
+        # use system LLVM-19 if found
+        LLVM_PATH="/usr/lib/llvm-19"
     fi
 else
     # windows or other platforms
