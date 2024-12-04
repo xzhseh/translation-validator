@@ -208,10 +208,10 @@ void ValidatorServer::recv_and_process_relay_server_request(int client_socket) {
                 // set resource limits for the current child process to prevent
                 // overwhelming/crashing/OOMing the validator server.
                 struct rlimit mem_limit {
-                    // 128 MB soft limit
-                    .rlim_cur = static_cast<rlim_t>(128 * 1024 * 1024),
-                    // 256 MB hard limit
-                    .rlim_max = static_cast<rlim_t>(256 * 1024 * 1024)
+                    // 512 MB soft limit
+                    .rlim_cur = static_cast<rlim_t>(512 * 1024 * 1024),
+                    // 1 GB hard limit
+                    .rlim_max = static_cast<rlim_t>(1024 * 1024 * 1024)
                 };
 
                 if (setrlimit(RLIMIT_AS, &mem_limit) != 0) {
@@ -423,9 +423,22 @@ auto ValidatorServer::handle_generate_request(
     std::string cpp_ir = TMP_STORAGE_PREFIX + random_hash + "_cpp.ll";
     std::string rust_ir = TMP_STORAGE_PREFIX + random_hash + "_rs.ll";
 
-    // write the source code
-    std::ofstream(cpp_src) << cpp_code;
-    std::ofstream(rust_src) << rust_code;
+    // create and explicitly close the files
+    // note: this is important to keep the consistency between macOS and linux when
+    //       handling temporary file cleanup.
+    {
+        std::ofstream cpp_file(cpp_src);
+        cpp_file << cpp_code;
+        printer_.log("writing to cpp file: " + cpp_src);
+        cpp_file.flush();
+        cpp_file.close();
+
+        std::ofstream rust_file(rust_src);
+        rust_file << rust_code;
+        printer_.log("writing to rust file: " + rust_src);
+        rust_file.flush();
+        rust_file.close();
+    }
 
     // helper function to check if a command exists
     auto command_exists = [](const std::string &cmd) -> bool {
