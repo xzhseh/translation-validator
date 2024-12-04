@@ -51,24 +51,23 @@ llvm_map_components_to_libnames(llvm_libs
     TargetParser
 )
 
-# link against llvm, z3, and alive2
 target_link_libraries(standalone PRIVATE
-    ${Z3_LIBRARIES}
+    ${ALIVE2_DIR}/build/libllvm_util.a          # for `llvm_util::initializer`
+    ${ALIVE2_DIR}/build/libtools.a
     ${ALIVE2_DIR}/build/libir.a
     ${ALIVE2_DIR}/build/libsmt.a
     ${ALIVE2_DIR}/build/libutil.a
-    ${ALIVE2_DIR}/build/libtools.a
-    ${ALIVE2_DIR}/build/libllvm_util.a         # for `llvm_util::initializer`
+    ${Z3_LIBRARIES}
     ${llvm_libs}                               # will trigger ld warning(s) regarding duplicate libraries but that's fine
 )
 
 # link against llvm, z3, and alive2
 target_link_libraries(validator_server PRIVATE
-    ${Z3_LIBRARIES}
+    ${ALIVE2_DIR}/build/libllvm_util.a          # for `llvm_util::initializer`
+    ${ALIVE2_DIR}/build/libtools.a
     ${ALIVE2_DIR}/build/libir.a
     ${ALIVE2_DIR}/build/libsmt.a
     ${ALIVE2_DIR}/build/libutil.a
-    ${ALIVE2_DIR}/build/libtools.a
-    ${ALIVE2_DIR}/build/libllvm_util.a         # for `llvm_util::initializer`
+    ${Z3_LIBRARIES}
     ${llvm_libs}                               # will trigger ld warning(s) regarding duplicate libraries but that's fine
 )
