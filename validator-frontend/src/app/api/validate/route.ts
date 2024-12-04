@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { ValidationResult } from '@/types/validator';
 
 // note: relay server runs on localhost:3001 by default
 const RELAY_URL = process.env.RELAY_URL || 'http://localhost:3001';

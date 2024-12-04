@@ -229,8 +229,7 @@ const IRDisplay = memo(({ cppIR, rustIR }: IRDisplayProps) => (
 IRDisplay.displayName = 'IRDisplay';
 
 // create a tooltip wrapper component to handle individual tooltips
-const TooltipWrapper = memo(({ term, tooltip, children }: { 
-  term: string; 
+const TooltipWrapper = memo(({ tooltip, children }: { 
   tooltip: string; 
   children: React.ReactNode;
 }) => {
