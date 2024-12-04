@@ -1,13 +1,23 @@
 the frontend for the translation validator, powered by [Next.js](https://nextjs.org).
 
+## install dependencies
+
+```bash
+npm install --legacy-peer-deps
+```
+
 ## start the development server
 
 ```bash
 npm run dev
 ```
 
-open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+open [http://localhost:3000](http://localhost:3000) with your browser to see the frontend.
 
-## deploy on vercel
+**note**: to integrate the frontend with the backend server, please make sure [RelayServer](../relay_server/RelayServer.cpp) and [ValidatorServer](../src/ValidatorServer.cpp) are both compiled and started successfully through 1) `make build` 2) `make run_validator_server` and `make run_relay` respectively in the project [root directory](../).
 
-the easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## build
+
+```bash
+npm run build
+```
