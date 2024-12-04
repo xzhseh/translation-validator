@@ -1,10 +1,13 @@
+#include <atomic>
 #include <cpprest/http_listener.h>
 #include <cpprest/json.h>
+#include <csignal>
 #include <filesystem>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string>
+#include <thread>
 #include <arpa/inet.h>
 
 #include "../src/Printer.h"
@@ -288,12 +291,19 @@ private:
     }
 };
 
+std::atomic<bool> keep_running { true };
+
+void signal_handler(int signum) {
+    keep_running = false;
+}
+
 int main() {
     RelayServer server { "http://127.0.0.1:3001" };
     server.start();
 
-    std::string line;
-    std::getline(std::cin, line);
+    while (keep_running) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     return 0;
 }
