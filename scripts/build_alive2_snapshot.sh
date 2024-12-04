@@ -26,31 +26,37 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     fi
     LLVM_PATH=$(brew --prefix llvm)
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Check if LLVM 19 is installed
-    if ! dpkg -l | grep -q "llvm-19"; then
-        echo "[build_alive2_snapshot.sh] LLVM 19 not found"
-        read -p "would you like to install LLVM 19 from official LLVM repository? (y/n) " -n 1 -r
+    # check if LLVM-19 is installed
+    if [[ ! -d "/usr/lib/llvm-19" ]]; then
+        echo "[build_alive2_snapshot.sh] LLVM-19 not found"
+        read -p "would you like to install LLVM-19 from official LLVM repository? (y/n) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo "[build_alive2_snapshot.sh] removing old LLVM versions..."
-            sudo apt remove -y llvm-* libllvm*
-            
-            echo "[build_alive2_snapshot.sh] adding the LLVM repository and installing dependencies..."
-            wget https://apt.llvm.org/llvm.sh
-            chmod +x llvm.sh
-            sudo ./llvm.sh 19 all
-            rm llvm.sh
-            
-            # Install other dependencies
+            # install other dependencies
             sudo apt install -y ninja-build build-essential \
                             re2c libhiredis-dev libedit-dev \
                             libzstd-dev libcurl4-openssl-dev
+            # install LLVM-19
+            sudo apt install -y llvm-19
+            LLVM_PATH="/usr/lib/llvm-19"
         else
-            echo "[build_alive2_snapshot.sh] LLVM 19 installation required but skipped"
-            exit 1
+            echo "[build_alive2_snapshot.sh] LLVM-19 installation required but skipped, attempting to find alternative LLVM versions..."
+            # try to find other LLVM versions, preferring the newest available
+            for version in {18..14}; do
+                if [[ -d "/usr/lib/llvm-${version}" ]]; then
+                    LLVM_PATH="/usr/lib/llvm-${version}"
+                    echo "[build_alive2_snapshot.sh] found LLVM-${version} at ${LLVM_PATH}"
+                    echo "[build_alive2_snapshot.sh] warning: using LLVM-${version} instead of LLVM-19 may cause compatibility issues"
+                    break
+                fi
+            done
+
+            if [[ -z "${LLVM_PATH:-}" ]]; then
+                echo "[build_alive2_snapshot.sh] no suitable LLVM installation found"
+                exit 1
+            fi
         fi
     fi
-    LLVM_PATH="/usr/lib/llvm-19"
 else
     # windows or other platforms
     echo "[build_alive2_snapshot.sh] unsupported platform: $OSTYPE"
