@@ -179,10 +179,6 @@ if (BUILD_LLVM_UTILS OR BUILD_TV)
     message(FATAL_ERROR "LLVM must be built with '-DLLVM_ENABLE_RTTI=ON'")
   endif()
 
-  if (NOT LLVM_ENABLE_EH)
-    message(FATAL_ERROR "LLVM must be built with '-DLLVM_ENABLE_EH=ON'")
-  endif()
-
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(AddLLVM)
 
@@ -201,18 +197,6 @@ if (BUILD_LLVM_UTILS OR BUILD_TV)
   set(ALIVE_LIBS_LLVM llvm_util ${ALIVE_LIBS})
 
   set(LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS} TargetParser)
-
-  add_llvm_executable(alive-tv
-    "tools/alive-tv.cpp"
-  )
-
-  add_llvm_executable(quick-fuzz
-    "tools/quick-fuzz.cpp"
-  )
-
-  add_llvm_executable(alive-exec
-    "tools/alive-exec.cpp"
-  )
 
 else()
   set(LLVM_UTIL_SRCS "")
@@ -258,10 +242,6 @@ install(TARGETS alive alive-jobserver)
 if (BUILD_LLVM_UTILS OR BUILD_TV)
   llvm_map_components_to_libnames(llvm_libs support core irreader bitwriter analysis passes transformutils)
 #  target_link_libraries(alive2 PRIVATE ${llvm_libs})
-  target_link_libraries(alive-tv PRIVATE ${ALIVE_LIBS_LLVM} ${Z3_LIBRARIES} ${HIREDIS_LIBRARIES} ${llvm_libs})
-  target_link_libraries(quick-fuzz PRIVATE ${ALIVE_LIBS_LLVM} ${Z3_LIBRARIES} ${HIREDIS_LIBRARIES} ${llvm_libs})
-  target_link_libraries(alive-exec PRIVATE ${ALIVE_LIBS_LLVM} ${Z3_LIBRARIES} ${HIREDIS_LIBRARIES} ${llvm_libs})
-  install(TARGETS alive-tv quick-fuzz alive-exec)
 endif()
 
 target_link_libraries(alive PRIVATE ${Z3_LIBRARIES} ${HIREDIS_LIBRARIES})
@@ -283,6 +263,3 @@ add_custom_target("check"
                   USES_TERMINAL
                  )
 
-if (BUILD_TV)
-  add_dependencies("check" "alive-tv" "quick-fuzz" "tv")
-endif()

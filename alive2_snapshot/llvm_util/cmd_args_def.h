@@ -32,12 +32,7 @@ if ((config::disallow_ub_exploitation = opt_disallow_ub_exploitation)) {
 func_names.insert(opt_funcs.begin(), opt_funcs.end());
 
 if (!report_dir_created && !opt_report_dir.empty()) {
-  try {
-    fs::create_directories(opt_report_dir.getValue());
-  } catch (...) {
-    cerr << "Alive2: Couldn't create report directory!" << endl;
-    exit(1);
-  }
+  fs::create_directories(opt_report_dir.getValue());
   auto &source_file = ARGS_MODULE_VAR->getSourceFileName();
   fs::path fname = source_file.empty() ? "alive.txt" : source_file;
   fname.replace_extension(".txt");

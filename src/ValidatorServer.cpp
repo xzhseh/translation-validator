@@ -1,5 +1,7 @@
 #include "ValidatorServer.h"
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
@@ -88,8 +90,8 @@ ValidatorServer::ValidatorServer(int port)
     , server_fd_(socket(AF_INET, SOCK_STREAM, 0))
     , address_ {
         .sin_family = AF_INET,
-        .sin_addr = { .s_addr = INADDR_ANY },
-        .sin_port = htons(port)
+        .sin_port = htons(port),
+        .sin_addr = { .s_addr = INADDR_ANY }
     }
 {
     if (server_fd_ < 0) {

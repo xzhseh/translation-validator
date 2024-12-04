@@ -1,8 +1,10 @@
 #ifndef PRINTER_H
 #define PRINTER_H
 
+#include <cstring>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <functional>
 #include <fcntl.h>
 #include <errno.h>
