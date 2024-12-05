@@ -1,0 +1,904 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23ff6e7f"/><stop offset="100%" stop-color="%23bfe9ff"/></linearGradient></defs><circle cx="50" cy="50" r="40" fill="url(%23g)"/></svg>'>
+    <title>Translation Validation - From C++ to Rust</title>
+ 
+    <!-- relative paths to external resources + reveal.js files -->
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/white.css">
+    <link rel="stylesheet" href="dist/theme/fonts/custom-fonts.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- the lyrics scroll styles -->
+    <style>
+        .lyrics-container {
+            height: 200px;
+            overflow: hidden;
+            position: relative;
+            margin: 20px auto;
+            width: 80%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(191, 233, 255, 0.2);
+            animation: borderFlow 4s linear infinite;
+        }
+
+        @keyframes borderFlow {
+        0% {
+            border-color: rgba(191, 233, 255, 0.4);
+            box-shadow: 
+                0 0 20px rgba(191, 233, 255, 0.3),
+                inset 0 0 20px rgba(191, 233, 255, 0.3);
+        }
+        25% {
+            border-color: rgba(255, 110, 127, 0.4);
+            box-shadow: 
+                0 0 25px rgba(255, 110, 127, 0.3),
+                inset 0 0 25px rgba(255, 110, 127, 0.3);
+        }
+        50% {
+            border-color: rgba(191, 233, 255, 0.4);
+            box-shadow: 
+                0 0 20px rgba(191, 233, 255, 0.3),
+                inset 0 0 20px rgba(191, 233, 255, 0.3);
+        }
+        75% {
+            border-color: rgba(255, 110, 127, 0.4);
+            box-shadow: 
+                0 0 25px rgba(255, 110, 127, 0.3),
+                inset 0 0 25px rgba(255, 110, 127, 0.3);
+        }
+        100% {
+            border-color: rgba(191, 233, 255, 0.4);
+            box-shadow: 
+                0 0 20px rgba(191, 233, 255, 0.3),
+                inset 0 0 20px rgba(191, 233, 255, 0.3);
+            }
+        }
+
+        /* the flowing background effect */
+        .lyrics-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300%;
+            height: 100%;
+            background: linear-gradient(
+                120deg,
+                #bfe9ff 0%,
+                #ff6e7f 20%,
+                #bfe9ff 40%,
+                #ff6e7f 60%,
+                #bfe9ff 80%,
+                #ff6e7f 100%
+            );
+            /* note that the opacity is set to 0 by default, please adjust accordingly. */
+            opacity: 0;
+            animation: gradientMove 12s linear infinite;
+            z-index: -1;
+            
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
+        }
+
+        @keyframes gradientMove {
+            0% { 
+                transform: translateX(0%) translateZ(0);
+                -webkit-transform: translateX(0%) translateZ(0);
+            }
+            100% { 
+                transform: translateX(-66.67%) translateZ(0);
+                -webkit-transform: translateX(-66.67%) translateZ(0);
+            }
+        }
+
+        /* the fade effects for the lyrics-container */
+        .lyrics-container::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 50px;
+            background: linear-gradient(to top, 
+                rgba(255, 255, 255, 0.95), 
+                rgba(255, 255, 255, 0));
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .lyrics-scroll {
+            animation: scrollLyrics 30s linear infinite;
+            position: relative;
+        }
+
+        @keyframes scrollLyrics {
+            0%, 5% {
+                transform: translateY(0%);
+            }
+            100% {
+                transform: translateY(-100%);
+            }
+        }
+
+        .lyrics-scroll p {
+            text-align: center;
+            margin: 15px 0;
+            font-size: 1.2em;
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+            transition: all 0.3s ease;
+        }
+
+        .lyrics-scroll p:hover {
+            transform: scale(1.1);
+            background: linear-gradient(135deg, #ff6e7f 30%, #bfe9ff 70%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+
+    <!-- the citation styles, could be used within your `slides.md` -->
+    <style>
+        /* citation superscript */
+        sup {
+            font-size: 0.3rem;
+            vertical-align: super;
+            color: #ff6e7f;
+            cursor: pointer;
+        }
+        .reveal sup {
+            font-size: 60%;
+        }
+    
+        /* citation container at bottom */
+        .citation-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            font-size: 0.7em;
+        }
+    
+        /* divider line */
+        .citation-divider {
+            border: 0;
+            height: 1px;
+            background: linear-gradient(90deg, #ff6e7f 0%, #bfe9ff 100%);
+            opacity: 0.3;
+            margin-bottom: 10px;
+        }
+    
+        /* citations */
+        .citations {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+    
+        .citation {
+            margin: 0;
+            color: #666;
+            font-style: italic;
+            transition: all 0.3s ease;
+        }
+
+        /* hover effect */
+        .citation:hover,
+        .citation.gradient-active {
+            background-image: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient 6s ease infinite;
+            background-size: 200% 200%;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50% }
+            50% { background-position: 100% 50% }
+            100% { background-position: 0% 50% }
+        }
+    </style>
+
+    <!-- the reusable gradient text class, could be used within your `slides.md` -->
+    <style>
+        /* create a reusable gradient text class */
+        .gradient-text {
+            background-image: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+            animation: gradient 6s ease infinite;
+            background-size: 200% 200%;
+            position: relative;
+            cursor: pointer;
+            display: inline-block;  /* important for proper underline width */
+            text-decoration: none;  /* remove default link underline */
+        }
+
+        /* ensure gradient works on links in all states */
+        a.gradient-text:link,
+        a.gradient-text:visited,
+        a.gradient-text:hover,
+        a.gradient-text:active {
+            background-image: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+        }
+    
+        /* hover underline effect */
+        .gradient-text::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #ff6e7f, #bfe9ff);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+    
+        .gradient-text:hover::after {
+            transform: scaleX(1);
+        }
+
+        /* another wrapper class for the permanently underlined gradient text */
+        .gradient-text-underlined {
+            background-image: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+            animation: gradient 6s ease infinite;
+            background-size: 200% 200%;
+            position: relative;
+            cursor: pointer;
+            display: inline-block;
+            text-decoration: none;
+        }
+
+        /* ensure gradient works on links in all states for underlined version */
+        a.gradient-text-underlined:link,
+        a.gradient-text-underlined:visited,
+        a.gradient-text-underlined:hover,
+        a.gradient-text-underlined:active {
+            background-image: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* permanent underline effect */
+        .gradient-text-underlined::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, #ff6e7f, #bfe9ff);
+            transform: scaleX(1); /* always showing the underline */
+        }
+    </style>
+
+    <!-- the theme styles -->
+    <style>
+        /* do note that the default background is not being used currently */
+        /* you could enable it by commenting the next style section regarding the dynamic background */
+        .reveal {
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            color: #ffffff;
+            font-family: 'Libertinus Serif', 'Noto Serif CJK SC', sans-serif;
+        }
+
+        /* prevent the title from being automatically capitalized */
+        .reveal h1 {
+            text-transform: none !important;
+        }
+
+        /* use fira code for code blocks */
+        .reveal code:not(pre code) {
+            font-family: 'Fira Code', var(--r-code-font);
+        }
+
+        .reveal h1,
+        .reveal h2,
+        .reveal h3,
+        .reveal h4,
+        .reveal h5,
+        .reveal h6 {
+            font-family: 'Libertinus Serif', 'Noto Serif CJK SC', sans-serif;
+        }
+
+        .reveal .slides section {
+            text-align: left;
+            border: 1px solid rgba(0, 0, 0, 0.1);  
+            border-radius: 8px;                   
+            padding: 20px;                         
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);  
+            background-color: white;
+            width: 100%;                           
+            height: 100%;                          
+            box-sizing: border-box;               
+            margin: 0;                             
+            position: absolute;                   
+            top: 0;
+            left: 0;
+        }
+
+        .reveal .slides > section > section {
+            border: none;          
+            border-radius: 0;      
+            box-shadow: none;      
+            background: none;      
+        }
+
+        /* add card effect only to the content container within vertical slides */
+        .reveal .slides > section > section .content {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .reveal h1 {
+            font-size: 1.2em;
+            font-weight: 600;
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: gradient 6s ease infinite;
+            background-size: 200% 200%;
+            position: relative;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50% }
+            50% { background-position: 100% 50% }
+            100% { background-position: 0% 50% }
+        }
+
+        .reveal h1::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #ff6e7f, #bfe9ff);
+            transform: scaleX(0);
+            transform-origin: left;
+        }
+
+        .reveal h1.animate-underline::after {
+            animation: underlineSlide 2s ease forwards;
+        }
+
+        @keyframes underlineSlide {
+            from {
+                transform: scaleX(0);
+            }
+            to {
+                transform: scaleX(1);
+            }
+        }
+
+        /* modern gradient quote box */
+        .reveal blockquote {
+            /* glass morphism effect with gradient */
+            background: rgb(255, 255, 255);
+            backdrop-filter: blur(10px);
+            border-left: 4px solid;
+            border-image: linear-gradient(to bottom, #ff6e7f, #bfe9ff) 1;
+            border-radius: 0 12px 12px 0;
+            padding: 0.4em 1em;
+            margin: 0.5em 0;
+            width: 90%;
+            font-size: 0.8em;
+            box-shadow: 
+                0 4px 15px rgba(0, 0, 0, 0.05),
+                inset 0 0 80px rgba(255, 110, 127, 0.05);
+            position: relative;
+            overflow: hidden;
+            transition: all 1s ease;
+            text-align: center;
+            
+            /* add these properties for better performance */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            perspective: 1000;
+            -webkit-perspective: 1000;
+        }
+
+        /* animated gradient background */
+        .reveal blockquote::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300%;
+            height: 100%;
+            background: linear-gradient(
+                120deg,
+                #bfe9ff 0%,
+                #ff6e7f 20%,
+                #bfe9ff 40%,
+                #ff6e7f 60%,
+                #bfe9ff 80%,
+                #ff6e7f 100%
+            );
+            opacity: 0.5;
+            animation: gradientMove 12s linear infinite;
+            z-index: -1;
+            
+            /* Add these properties */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
+        }
+
+        @keyframes gradientMove {
+            0% { 
+                transform: translateX(0%) translateZ(0);
+                -webkit-transform: translateX(0%) translateZ(0);
+            }
+            100% { 
+                transform: translateX(-66.67%) translateZ(0);
+                -webkit-transform: translateX(-66.67%) translateZ(0);
+            }
+        }
+
+        /* modern hover effects */
+        .reveal blockquote:hover {
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 
+                0 8px 25px rgba(0, 0, 0, 0.1),
+                inset 0 0 80px rgba(255, 110, 127, 0.08);
+        }
+
+        .reveal blockquote p {
+            /* modern typography */
+            color: #2c3e50;
+            line-height: 1.4;
+            letter-spacing: 0.02em;
+            font-weight: 500;
+            font-style: normal;
+            
+            /* text gradient effect */
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+
+            /* prevent layout shift */
+            transform: translateX(0);
+            backface-visibility: hidden;
+            padding: 0;
+            margin: 0 auto;
+            width: 100%;
+
+            /* smooth animation on hover */
+            transition: all 0.3s ease;
+            
+            /* positioning */
+            position: relative;
+            z-index: 1;
+
+            /* optional text shadow for depth */
+            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.1);
+            text-align: left;
+        }
+
+        /* hover effect */
+        .reveal blockquote:hover p {
+            transform: translateX(4px);
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            letter-spacing: 0.03em;
+        }
+
+        /* add subtle corner decorations */
+        .reveal blockquote::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, transparent 45%, rgba(191, 233, 255, 0.2) 100%);
+            border-radius: 0 12px 0 50px;
+        }
+
+        /* add a semi-transparent white container for content */
+        .reveal .slides section {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        /* stylish bullet points */
+        .reveal ul,
+        .reveal ul ul,
+        .reveal ul ul ul {
+            list-style: none;
+        }
+
+        .reveal ul,
+        .reveal p {
+            font-size: 0.7em;
+            margin-bottom: 0.1em;
+            margin-top: 0.1em;
+        }
+
+        .reveal ul {
+            margin-top: 0.1em;
+            margin-left: 0.1em;
+        }
+
+        .reveal ul ul {
+            font-size: 0.9em;
+            margin-top: 0.1em;
+        }
+
+        .reveal ul li::before {
+            content: "⟩";  /* or try: ✧ ✦ ❈ ✤ ❉ ✾ ❃ */
+            font-weight: bold;
+            display: inline-block;
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            width: 1.2em;
+            margin-left: -1.2em;
+            position: relative;
+            top: -0.15em;
+            font-size: 0.85em;
+            line-height: 1;
+            vertical-align: middle;
+        }
+    </style>
+
+    <!-- comment this out if you prefer the default, static background -->
+    <style>
+        .reveal {
+            background: none;
+        }
+
+        /* the background wrapper that sits behind everything */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 300%;
+            height: 100%;
+            background: linear-gradient(
+                120deg,
+                rgba(191, 233, 255, 0.3) 0%,
+                rgba(255, 110, 127, 0.3) 20%,
+                rgba(191, 233, 255, 0.3) 40%,
+                rgba(255, 110, 127, 0.3) 60%,
+                rgba(191, 233, 255, 0.3) 80%,
+                rgba(255, 110, 127, 0.3) 100%
+            );
+            animation: backgroundFlow 15s linear infinite;
+            z-index: -1;
+            
+            /* for performance optimizations */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            perspective: 1000;
+            -webkit-perspective: 1000;
+        }
+
+        /* animation for the flowing background */
+        @keyframes backgroundFlow {
+            0% {
+                transform: translateX(0%) translateZ(0);
+                -webkit-transform: translateX(0%) translateZ(0);
+            }
+            100% {
+                transform: translateX(-66.67%) translateZ(0);
+                -webkit-transform: translateX(-66.67%) translateZ(0);
+            }
+        }
+
+        /* adjust slide background for better contrast */
+        .reveal .slides section {
+            background: rgba(255, 255, 255, 0.95); /* more opaque white background */
+            backdrop-filter: blur(10px); /* add blur effect */
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* optional: add subtle noise texture for more depth */
+        body {
+            position: relative;
+            background-image: url('data:image/png;base64,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');
+        }
+    </style>
+
+    <!-- quote tooltip styling -->
+    <style>
+        .quote-hover {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .quote-hover::before {
+            content: attr(data-quote);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            min-width: 500px;
+            max-width: 500px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #ff6e7f;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            font-size: 0.7em;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            font-weight: 500;
+            pointer-events: none;
+            margin: 0.5em 0;
+        }
+
+        .quote-hover:hover::before {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+
+    <!-- static text styling -->
+    <style>
+        .static-container {
+            width: 100%;
+            max-width: 600px;
+            height: 550px;
+            margin: 10px auto;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(191, 233, 255, 0.1);
+            overflow-y: auto;  /* Enable vertical scrolling */
+            position: relative;
+            font-size: 0.8em;
+            animation: borderFlow 15s linear infinite;
+        }
+
+        .static-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .static-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .static-container::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            border-radius: 4px;
+        }
+
+        .static-text {
+            padding: 5px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .static-text p {
+            margin: 5px 0;
+            transition: all 0.3s ease;
+        }
+
+        .static-text p:hover {
+            background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transform: translateX(10px);
+        }
+    </style>
+
+    <!-- media hover styling -->
+    <style>
+        .media-hover {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .media-hover::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            width: 600px;
+            height: 300px;
+            border-radius: 10px;
+            background-image: var(--hover-image);
+            background-color: transparent;
+            border: 1px solid rgba(255, 110, 127, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            pointer-events: none;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            margin-bottom: 20px;
+        }
+
+        .media-hover::after {
+            content: attr(data-caption);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            width: 400px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 110, 127, 0.3);
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            font-size: 0.8em;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            pointer-events: none;
+            margin-bottom: -200px;
+            color: #666;
+        }
+
+        .media-hover:hover::before,
+        .media-hover:hover::after {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .media-hover:not([data-caption])::after {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            <section data-markdown="slides.md"
+                     data-separator="^\n\n\n"
+                     data-separator-vertical="^\n\n"
+                     data-separator-notes="^Note:">
+            </section>
+        </div>
+    </div>
+
+    <!-- external resources + reveal.js scripts -->
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/math/math.js"></script>
+
+    <script>
+        // function to animate the h1
+        function animateH1(slide) {
+            const h1 = slide.querySelector('h1');
+            if (h1) {
+                h1.classList.remove('animate-underline');
+                // trigger reflow
+                void h1.offsetWidth;
+                h1.classList.add('animate-underline');
+            }
+        }
+
+        Reveal.initialize({
+            hash: true,
+            plugins: [ 
+                RevealMath.KaTeX,
+                RevealMarkdown,
+                RevealHighlight,
+                RevealNotes
+            ]
+        }).then(() => {
+            // trigger animation for first slide after initialization
+            const currentSlide = Reveal.getCurrentSlide();
+            animateH1(currentSlide);
+        });
+
+        // trigger animation on slide changes
+        Reveal.on('slidechanged', event => {
+            animateH1(event.currentSlide);
+        });
+    </script>
+
+    <script>
+        function setupCitationHovers() {
+            document.querySelectorAll('sup').forEach((sup) => {
+                // get the citation number from the sup text content
+                const citationNumber = sup.textContent.replace(/[\[\]]/g, '');
+                
+                // when mouse enters the superscript
+                sup.addEventListener('mouseenter', () => {
+                    // find the corresponding citation in the same slide
+                    const currentSlide = sup.closest('section');
+                    const citations = currentSlide.querySelectorAll('.citation');
+                    
+                    citations.forEach(citation => {
+                        if (citation.textContent.startsWith(`[${citationNumber}]`)) {
+                            citation.classList.add('gradient-active');
+                        }
+                    });
+                });
+            
+                // when mouse leaves the superscript
+                sup.addEventListener('mouseleave', () => {
+                    // find the corresponding citation in the same slide
+                    const currentSlide = sup.closest('section');
+                    const citations = currentSlide.querySelectorAll('.citation');
+                    
+                    // find citation with matching number
+                    citations.forEach(citation => {
+                        if (citation.textContent.startsWith(`[${citationNumber}]`)) {
+                            citation.classList.remove('gradient-active');
+                        }
+                    });
+                });
+            });
+        }
+
+        // setup citations after Reveal.js initialization
+        Reveal.addEventListener('ready', event => {
+            setupCitationHovers();
+        });
+
+        // setup citations after each slide change
+        Reveal.addEventListener('slidechanged', event => {
+            setupCitationHovers();
+        });
+    </script>
+</body>
+</html>
