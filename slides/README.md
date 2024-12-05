@@ -1,12 +1,5 @@
 this repository contains the slides for the presentation of translation validator.
 
-## how to build the slides
-```bash
-cd slides
-npm install
-npm run build
-```
-
 ## how to view the slides
 ```bash
 cd slides
