@@ -1,22 +1,33 @@
-# translation validator
+![alt text](./images/logo.svg)
 
-## overview
-this tool compares the source function in cpp with the target function in rust, and verifies whether the rust function is a correct translation/semantic equivalent of the cpp function using alive2 in llvm ir level.
+## Overview
+this tool verifies semantic equivalence between C++ and Rust functions by performing translation validation at the LLVM IR level using [Alive2](https://github.com/AliveToolkit/alive2).
 
-**ps**. you could find all provided source files to be verified in the [examples/source](./examples/source) directory.
+given a source C++ function and its target Rust translation, it:
 
-## prerequisites
-- follow the instructions in [alive2](https://github.com/AliveToolkit/alive2) to build and configure alive2, and also the specific llvm version.
-  - you should build the llvm from source (i.e., the latest main branch), with RTTI and exceptions turned on.
+- compiles both functions to LLVM IR using their respective frontends (`clang++`/`rustc`)
+- verifies whether the target IR **refines** the source IR through alive2's validation logic
+- reports detailed validation results and potential semantic mismatches
 
-- based on the provided `CMakeLists_Template`, create your own `CMakeLists.txt` by replacing the placeholder for the paths, you may need to change the `.dylib` to `.so` or `.a` depending on your OS.
+a key insight is that the validation happens at the IR level where language-specific semantics (like overflow behavior) are encoded into LLVM IR (which is converted to alive2's IR during validation process) attributes and instructions.
 
-## standalone version
+## Prerequisites
+due to [alive2](https://github.com/AliveToolkit/alive2)'s rapid development and its requirements/recommendations to always be built based on the latest LLVM `main` branch, I packed a recent snapshot (i.e., Mid Oct 2024) of alive2 in the [alive2_snapshot](./alive2_snapshot) with only the relevant dependencies/modules and custom changes to be compatible with the latest **default** LLVM version(s).
+
+to keep the consistency between each compilation, it's recommended to use `llvm-19` to build both `alive2_snapshot` and the translation validator - you will be prompted to install `llvm-19` if you don't have it.
+
+to build `alive2_snapshot`, you could either run `make build_alive2` or triggers a full build by `make full_build`, see [build_alive2_snapshot.sh](./scripts/build_alive2_snapshot.sh) and [build.sh](./scripts/build.sh) for more details.
+
+**note**: using different versions of `llvm` may cause compatibility issues during compilation.
+
+## Standalone Version
 please note that the translation validator has two different versions, one is the **standalone** version which could be directly run through terminal through the following commands; the other is the **full-stack** version that needs the frontend (see [validator-frontend](./validator-frontend) for more details) + the backend (`RelayServer` in [relay_server](./relay_server) and `ValidatorServer` in [ValidatorServer.h](./src/ValidatorServer.h)).
 
 the following sections are especially for running the standalone version, prior to that, you should've already built the alive2 following the above instructions.
 
-### build and run
+**ps**. you could find all provided source files to be verified in the [examples/source](./examples/source) directory.
+
+### Build & Run
 through `make build_standalone`, `make run_standalone`, or `make build_and_run_standalone`.
 
 the complete form, if using the first command, is:
@@ -30,7 +41,7 @@ the `ARGS` option is the arguments to specify a specific function name to be ver
 
 **note**: the `compile_commands.json` in the root directory is a dynamic link to the `compile_commands.json` in the build directory, which will be automatically generated through the building process by `cmake`, this is generally used by `clangd` for code navigation, you may need to reload the window to make it work.
 
-### workflow
+### Workflow
 the standalone version generally follows the workflow, i.e.,
 1. creating the cpp and rust source files in the [examples/source](./examples/source) directory, you could refer to the provided source files for more details.
 
@@ -48,8 +59,8 @@ the [examples/ir_fixed](./examples/ir_fixed) directory is a collection of the ir
 
 **note**: the [examples/ir_fixed](./examples/ir_fixed) directory contains the ir files generated locally from macOS, you may need to re-generate the ir files from the source files and make the same changes according to the `note.md` if you are using a different platform.
 
-## full-stack version
-### overview
+## Full-Stack Version
+### Overview
 the infrastructure of the full-stack version is relatively simple,
 - the backend consists of `RelayServer` and `ValidatorServer`.
   - `RelayServer` is responsible for receiving the requests (i.e., `/api/generate-ir` and `/api/validate`) from the frontend, and sending the requests to the `ValidatorServer` for the actual verification.
@@ -59,7 +70,7 @@ the infrastructure of the full-stack version is relatively simple,
 
 ![Application Architecture](./images/architecture.svg)
 
-### build and run locally
+### Build & Run Locally
 before running the following commands, you should have already built the project by `make build`, this will build the `RelayServer`, `ValidatorServer`, and the standalone version.
 
 - first you should start the backend servers, i.e., `RelayServer` and `ValidatorServer`.
@@ -74,10 +85,10 @@ before running the following commands, you should have already built the project
 
 **ps**. for your convenience, I've already deployed the application on [my server](https://translation-validator.com), you could directly visit it to try the translation validator on any device.
 
-## practicality & impracticality
+## Practicality & Impracticality
 before talking about the practicality and impracticality of the translation validator, let's first see how does alive2 check the semantic equivalence of two LLVM IR functions.
 
-### refinement
+### Refinement
 alive2 uses the concept of **refinement** to verify semantic equivalence between source and target functions.
 
 > ***a target function refines a source function if, for any given input, the target's behavior is a subset of the source's behavior.***
@@ -108,13 +119,13 @@ fn add(a: u32, b: u32) -> u32 {
 
 this is not a valid refinement because the target's behavior is less defined (strict) than the source - `rustc` complains/panics (**triggers UB**) when the addition of two `u32` overflows, while the source cpp function silently wraps based on the **language specification**.
 
-### encoding
+### Encoding
 the program states are encoded as tuples `⟨r, M, ub⟩` where:
 - `r` is the return value
 - `M` is the memory state
 - `ub` is a boolean flag indicating if undefined behavior occurred
 
-### SMT solver (z3)
+### SMT Solver (z3)
 the final verification step uses the underlying z3 (i.e., the SMT solver) to prove refinement between the source and target IR functions.
 
 instead of using a single monolithic query, alive2 verifies refinement through a sequence of simpler SMT queries to z3, i.e.,
@@ -128,7 +139,7 @@ instead of using a single monolithic query, alive2 verifies refinement through a
 
 this **incremental approach** provides clearer error messages and reduces solver complexity.
 
-## practicality (🤩)
+## Practicality (🤩)
 - **quick & efficient validation tool**
   - excels at validating simple, especially pure function pairs
   - serves as a "***swiss army knife***" for straightforward translation validation cases
@@ -140,7 +151,7 @@ this **incremental approach** provides clearer error messages and reduces solver
   - employs z3 solver for rigorous semantic equivalence reasoning
   - builds on alive2's proven track record of finding bugs in LLVM
 
-## impracticality (😅😅😅)
+## Impracticality (😅😅😅)
 - **limited LLVM IR support**
   - many LLVM IR features and instructions remain unsupported:
     - `invoke`, `landingpad`, `atomicrmw`, `atomicload`, `atomicstore`..
@@ -170,13 +181,13 @@ this **incremental approach** provides clearer error messages and reduces solver
   - timeout issues with sophisticated transformations
 
 - **after all..**
-  - every existing validation tool is trying to evaluate the "semantic equivalence" in whatever a **shared medium**, e.g., a proprietary IR (GOTO-program used by CBMC) or an open IR (LLVM IR).
-  - we could try hard-coded a bunch of stuff/rules/queries to achieve the validation goal in the shared medium level, but when it comes to the relationship between the IR vs. the actual executable - it's another completely different story.. 🤯😂😅😂🤯
+  - every existing validation tool is trying to evaluate the "semantic equivalence" in whatever a **shared medium**, e.g., a proprietary IR (`GOTO-program` used by [CBMC](https://www.cprover.org/cbmc/)) or an open IR (`LLVM IR`).
+  - we could try hard-coded a bunch of stuff/rules/queries to achieve the validation goal in the shared medium level, but when it comes to the relationship between the `IR` vs. the `actual executable` - it's another completely different story.. 🤯😂😅😂🤯
   - turns out that it's still somewhat impossible to achieve the ultimate reasoning goal for general/specific translation validation as for now..
 
 with the above limitations, a hybrid approach combining this tool with other validation methods (e.g., high-level testing) might be more practical for comprehensive translation verification.
 
-## for more information
+## For More Information
 you might want to check out the following resources, i.e.,
 - [alive2](https://github.com/AliveToolkit/alive2)
 - [alive2 paper](https://web.ist.utl.pt/nuno.lopes/pubs/alive2-pldi21.pdf)

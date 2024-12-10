@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1200 280" xmlns="http://www.w3.org/2000/svg">
+    <!-- Import Fira Sans -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&amp;display=swap');
+    </style>
+    
+    <defs>
+        <!-- Modern gradient with subtle colors -->
+        <linearGradient id="modernGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#6366F1;stop-opacity:0.8"/>
+            <stop offset="50%" style="stop-color:#8B5CF6;stop-opacity:0.7"/>
+            <stop offset="100%" style="stop-color:#A78BFA;stop-opacity:0.8"/>
+        </linearGradient>
+        
+        <!-- Subtle background pattern -->
+        <pattern id="subtlePattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+            <circle cx="20" cy="20" r="1" fill="#6366F1" opacity="0.1"/>
+        </pattern>
+    </defs>
+
+    <!-- Subtle background with pattern -->
+    <rect x="0" y="0" width="1200" height="280" fill="white"/>
+    <rect x="0" y="0" width="1200" height="280" fill="url(#subtlePattern)"/>
+
+    <!-- Main Title -->
+    <text x="100" y="120" font-family="'Fira Sans', sans-serif" font-weight="700" font-size="72" fill="url(#modernGradient)">
+        Translation Validator
+    </text>
+
+    <!-- Subtitle with increased spacing -->
+    <text x="100" y="180" font-family="'Fira Sans', sans-serif" font-weight="400" font-size="24" fill="#6B7280" letter-spacing="0.5">
+        Validate semantic equivalence between C++ and Rust
+    </text>
+    <text x="100" y="220" font-family="'Fira Sans', sans-serif" font-weight="400" font-size="24" fill="#6B7280" letter-spacing="0.5">
+        LLVM IR using <tspan font-weight="600" fill="#6366F1">State-Of-The-Art</tspan> Verification
+    </text>
+
+    <!-- Modern decorative elements -->
+    <g transform="translate(900, 60)">
+        <!-- Geometric shapes with gradient -->
+        <circle cx="150" cy="80" r="40" fill="url(#modernGradient)" opacity="0.1"/>
+        <circle cx="120" cy="100" r="25" fill="url(#modernGradient)" opacity="0.15"/>
+        <circle cx="180" cy="90" r="15" fill="url(#modernGradient)" opacity="0.2"/>
+    </g>
+</svg>
