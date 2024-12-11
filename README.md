@@ -66,7 +66,7 @@ the infrastructure of the full-stack version is relatively simple,
   - `RelayServer` is responsible for receiving the requests (i.e., `/api/generate-ir` and `/api/validate`) from the frontend, and sending the requests to the `ValidatorServer` for the actual verification.
   - `ValidatorServer` is responsible for generating/validating the ir files and sending the results back to the `RelayServer`.
   - do note that the two servers support **parallel requests** and **concurrent executions**, i.e., the requests are processed concurrently and do not interfere with/block each other.
-- the frontend is a [react](https://react.dev/) application, see [validator-frontend](./validator-frontend) for more details.
+- the frontend is a [Next.js](https://nextjs.org/) application, see [validator-frontend](./validator-frontend) for more details.
 
 ![Application Architecture](./images/architecture.svg)
 
