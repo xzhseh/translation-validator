@@ -46,11 +46,11 @@ pub fn create_color(x: i32) -> Color {
     switch (c) {
         case ' ':
         case '\\t':
-        case '\\n': return 0;  // whitespace
-        case '0' ... '9': return 1;  // digit
+        case '\\n': return 0;
+        case '0' ... '9': return 1;
         case 'a' ... 'z':
-        case 'A' ... 'Z': return 2;  // letter
-        default: return 3;  // other
+        case 'A' ... 'Z': return 2;
+        default: return 3;
     }
 }`,
     rust: `pub extern "C" fn classify_char(c: i8) -> i32 {
@@ -68,7 +68,10 @@ pub fn create_color(x: i32) -> Color {
 unsigned int add(unsigned int a, unsigned int b) {
     return a + b;
 }`,
-    rust: `pub fn add(a: u32, b: u32) -> u32 {
+    rust: `/// for the addition of two unsigned integers, Alive2 correctly identifies
+/// the different behaviors between source C++ (implicitly wrapping) and
+/// target Rust (panics when overflow happens).
+pub fn add(a: u32, b: u32) -> u32 {
     a + b
 }`
   },
@@ -152,11 +155,17 @@ int32_t binary_search(const int32_t *arr, int64_t size, const int32_t *target) {
 }`
   },
   deref: {
-    cpp: `int deref(const int *ptr) {
-    // ptr could be null here, which will trigger a segfault if ptr is null.
+    cpp: `/// qq: is this a false positive (i.e., they are not semantically equivalent while alive2 claims they are)?
+///     1. from llvm ir's perspective?
+///        - does alive2 have the visibility of (____) ?
+///     2. from cpp/rust's perspective?
+///        - do we have the visibility of (____) ?
+int deref(const int *ptr) {
+    // ptr could be (____) here, which will trigger a segfault.
     return *ptr;
 }`,
     rust: `/// a "safer" translation - is this semantically equivalent?
+/// plus, do we really want the "semantic equivalence" when migrating from cpp to rust?
 pub fn deref(ptr: &i32) -> i32 {
     // \`ptr\` is guaranteed non-null by type system,
     // so that this is always safe, reference is guaranteed valid.
@@ -246,10 +255,15 @@ pub fn div_by_zero(a: i32, b: i32) -> i32 {
 }`
   },
   callback: {
-    cpp: `int process(int (*callback)(int), int x) {
+    cpp: `/// function pointer example, the verification will timeout.
+/// note: function pointer is one of the unsupported features of alive2.
+int process(int (*callback)(int), int x) {
     return callback(x);
 }`,
-    rust: `pub fn process(callback: fn(i32) -> i32, x: i32) -> i32 {
+    rust: `/// it is worth noting that this translation follows the simplest
+/// function pointer style in rust, in order to type check
+/// with the cpp llvm ir when verifying by alive2.
+pub fn process(callback: fn(i32) -> i32, x: i32) -> i32 {
     callback(x)
 }`
   },
@@ -292,5 +306,66 @@ pub fn int_bits_to_float(bits: i32) -> f32 {
         u.f
     }
 }`
-  }
+  },
+  factorial: {
+    cpp: `int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}`,
+    rust: `/// nested function call is not supported by alive2,
+/// so that the recursive call to \`factorial\` will be trivially
+/// marked as undefined behavior (UB) and rejected by alive2.
+pub fn factorial(n: i32) -> i32 {
+    if n <= 1 {
+        return 1;
+    }
+    n.wrapping_mul(factorial(n - 1))
+}`
+  },
+  nested_switch: {
+    cpp: `int process_tokens(char type, int value) {
+    switch (type) {
+        case 'n':
+            switch (value) {
+                case 0: return -1;
+                case 1:
+                case 2: return value * 10;
+                default:
+                    if (value > 100) return 100;
+            }
+        case 'c':
+            if (value < 32) return 0;
+        case 's':
+            return value + 50;
+        default:
+            return -99;
+    }
+}`,
+    rust: `/// the extern "C" and \`i8\` are the same as in \`switch_case.rs\`.
+/// note that we need to use \`wrapping_mul\` and \`wrapping_add\`
+/// to make alive2 happy.
+pub extern "C" fn process_tokens(type_: i8, value: i32) -> i32 {
+    match type_ as u8 as char {
+        'n' => {
+            match value {
+                0 => -1,
+                1 | 2 => value.wrapping_mul(10),
+                v if v > 100 => 100,
+                v => {
+                    if v < 32 { 0 }
+                    else { v.wrapping_add(50) }
+                }
+            }
+        }
+        'c' => {
+            if value < 32 { 0 }
+            else { value.wrapping_add(50) }
+        }
+        's' => value.wrapping_add(50),
+        _ => -99
+    }
+}`
+  },
 };

@@ -36,6 +36,8 @@ export default function ExampleSelector({ onSelect }: { onSelect: (cpp: string, 
           <option value="clone">Clone</option>
           <option value="callback">Callback</option>
           <option value="bitfield_ops">Bitfield Operations</option>
+          <option value="factorial">Factorial</option>
+          <option value="nested_switch">Nested Switch</option>
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
