@@ -1,3 +1,6 @@
+//! unfortunately, Alive2 does NOT support atomic operations and
+//! the corresponding LLVM IR instructions.
+
 #include <atomic>
 
 // int fetch_add(std::atomic<int>& counter, int value) {

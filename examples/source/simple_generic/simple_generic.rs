@@ -1,5 +1,3 @@
-//! translated by claude-3.5-sonnet at Nov 21, 2024
-
 use std::ops::Add;
 
 // generic add function

@@ -1,5 +1,6 @@
 /// the extern "C" and `i8` are the same as in `switch_case.rs`.
-/// note that 
+/// note that we need to use `wrapping_mul` and `wrapping_add`
+/// to make alive2 happy.
 #[inline(never)]
 pub extern "C" fn process_tokens(type_: i8, value: i32) -> i32 {
     match type_ as u8 as char {
